@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="fa">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ورود به سایت</title>
+  <link rel="stylesheet" href="style.css" />
+  <script defer>
+    async function handleAccess(e) {
+      e.preventDefault();
+      const pass = document.getElementById('sitePassword').value.trim();
+      const msg = document.getElementById('msg');
+      msg.textContent = '';
+      try {
+        const res = await fetch('/auth/access', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sitePassword: pass })
+        });
+        const data = await res.json();
+        if (!data.ok) {
+          msg.textContent = 'رمز اشتباه است ❌';
+          msg.style.color = 'red';
+          return;
+        }
+        msg.textContent = 'ورود موفق ✅';
+        msg.style.color = 'green';
+        setTimeout(() => { window.location.href = 'login.html'; }, 800);
+      } catch (err) {
+        msg.textContent = 'خطا در ارتباط با سرور';
+        msg.style.color = 'red';
+      }
+    }
+  </script>
+</head>
+<body class="login-page">
+  <div class="login-container">
+    <h2>ورود به سایت</h2>
+    <form onsubmit="handleAccess(event)">
+      <input type="password" id="sitePassword" placeholder="رمز سایت" required />
+      <button type="submit">ادامه</button>
+      <p id="msg" style="margin-top:10px;"></p>
+    </form>
+  </div>
+</body>
+</html>

@@ -1,113 +1,96 @@
 <!DOCTYPE html>
-<html lang="fa">
+<html lang="fa" dir="rtl">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Register - Eclipse Hunter</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ثبت‌نام — Eclipse Hunter</title>
+  <link rel="stylesheet" href="style.css">
   <style>
-    :root{
+    :root {
       --tg-blue:#0088cc;
       --bg:#f6f9fc;
       --card:#ffffff;
       --muted:#6b7280;
+      --danger:#b91c1c;
+      --success:#059669;
     }
-    *{box-sizing:border-box;font-family:system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial}
-    html,body{height:100%;margin:0;background:linear-gradient(180deg,#eaf6fb 0%,var(--bg) 100%);color:#111}
-    .wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
-    .card{width:100%;max-width:460px;background:var(--card);border-radius:16px;box-shadow:0 8px 30px rgba(2,6,23,0.06);padding:20px}
-    h1{margin:0 0 8px;font-size:20px;color:var(--tg-blue);text-align:center}
-    p.lead{margin:0 0 16px;text-align:center;color:var(--muted);font-size:14px}
-    form{display:flex;flex-direction:column;gap:10px}
-    .input{width:100%;padding:12px 14px;border-radius:12px;border:1px solid #e6eef6;background:transparent;font-size:15px}
-    .file{display:flex;gap:8px;align-items:center;padding:10px;border-radius:12px;border:1px dashed #e6eef6;color:var(--muted);cursor:pointer}
-    .btn{display:inline-flex;align-items:center;justify-content:center;padding:12px;border-radius:12px;border:0;background:var(--tg-blue);color:#fff;font-weight:600;cursor:pointer;font-size:15px}
-    .muted{color:var(--muted);font-size:13px;text-align:center}
-    .links{display:flex;justify-content:center;margin-top:10px;gap:8px}
-    .msg{margin-top:10px;text-align:center;font-size:13px;color:#b91c1c;min-height:20px}
-    @media(min-width:720px){ .card{padding:28px} h1{font-size:22px} }
+    * { box-sizing:border-box; font-family:system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial }
+    body { margin:0; background:linear-gradient(180deg,#eaf6fb 0%,var(--bg) 100%); color:#111; min-height:100vh; display:flex; align-items:center; justify-content:center; }
+    .card { width:100%; max-width:460px; background:var(--card); border-radius:16px; box-shadow:0 8px 30px rgba(2,6,23,0.06); padding:25px; }
+    h1 { text-align:center; color:var(--tg-blue); margin-bottom:8px; }
+    p { text-align:center; color:var(--muted); font-size:14px; margin-bottom:20px; }
+    form { display:flex; flex-direction:column; gap:12px; }
+    input { padding:12px 14px; border-radius:12px; border:1px solid #e6eef6; font-size:15px; direction:ltr; }
+    button { padding:12px; border-radius:12px; border:none; background:var(--tg-blue); color:#fff; font-weight:600; font-size:15px; cursor:pointer; transition:0.2s; }
+    button:hover { opacity:0.9; }
+    .msg { text-align:center; font-size:13px; margin-top:10px; min-height:20px; }
+    .links { text-align:center; margin-top:10px; }
+    .links a { color:var(--tg-blue); text-decoration:none; font-weight:600; margin:0 5px; }
   </style>
-</head>
-<body>
-  <div class="wrap">
-    <div class="card" role="main" aria-labelledby="title">
-      <h1 id="title">Eclipse Hunter</h1>
-      <p class="lead">برای دسترسی ابتدا رمز سایت را وارد و سپس حساب خود را بسازید</p>
-
-      <form id="registerForm" enctype="multipart/form-data" autocomplete="off" novalidate>
-        <input id="sitePassword" name="sitePassword" class="input" type="password" placeholder="Site password (رمز سایت)" required />
-        <input id="name" name="displayName" class="input" type="text" placeholder="Full name (نمایش)" required />
-        <input id="username" name="username" class="input" type="text" placeholder="Username (آیدی)" required />
-        <input id="password" name="password" class="input" type="password" placeholder="Account password (رمز حساب)" required />
-        <label class="file" for="avatar" id="fileLabel">Upload avatar (اختیاری)</label>
-        <input id="avatar" name="avatar" type="file" accept="image/*" style="display:none" />
-        <button type="submit" class="btn">Create account</button>
-      </form>
-
-      <div class="links muted">
-        <span>Have an account?</span>
-        <a href="/login.html" style="color:var(--tg-blue);text-decoration:none;font-weight:600;margin-left:6px">Login</a>
-      </div>
-
-      <div id="message" class="msg" aria-live="polite"></div>
-    </div>
-  </div>
 
   <script>
-    (function(){
+    document.addEventListener('DOMContentLoaded', () => {
       const form = document.getElementById('registerForm');
-      const avatar = document.getElementById('avatar');
-      const fileLabel = document.getElementById('fileLabel');
-      const msg = document.getElementById('message');
+      const msg = document.getElementById('msg');
 
-      fileLabel.addEventListener('click', () => avatar.click());
-      avatar.addEventListener('change', () => {
-        const f = avatar.files[0];
-        fileLabel.textContent = f ? (f.name.length>26 ? f.name.slice(0,24)+'…' : f.name) : 'Upload avatar (اختیاری)';
-      });
+      function showMessage(text, ok) {
+        msg.textContent = text;
+        msg.style.color = ok ? 'var(--success)' : 'var(--danger)';
+      }
 
       form.addEventListener('submit', async (e) => {
         e.preventDefault();
-        msg.textContent = '';
-        msg.style.color = '#b91c1c';
-
-        const sitePassword = document.getElementById('sitePassword').value.trim();
-        const displayName = document.getElementById('name').value.trim();
         const username = document.getElementById('username').value.trim();
-        const password = document.getElementById('password').value;
+        const displayName = document.getElementById('displayName').value.trim();
+        const password = document.getElementById('password').value.trim();
 
-        if(!sitePassword || !displayName || !username || !password){
-          msg.textContent = 'Please fill required fields';
+        if (!username  !displayName  !password) {
+          showMessage('لطفاً تمام فیلدها را پر کنید', false);
           return;
         }
-
-        const fd = new FormData();
-        fd.append('sitePassword', sitePassword);
-        fd.append('displayName', displayName);
-        fd.append('username', username);
-        fd.append('password', password);
-        if(avatar.files[0]) fd.append('avatar', avatar.files[0]);
 
         try {
           const res = await fetch('/auth/register', {
             method: 'POST',
-            body: fd
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ username, displayName, password })
           });
+
           const data = await res.json();
-          if(res.ok && data && data.user){
-            msg.style.color = '#059669';
-            msg.textContent = 'Registration successful — منتقل می‌شوید به صفحه ورود';
-            setTimeout(()=> location.href = '/login.html', 900);
-          } else if (data && data.error) {
-            msg.textContent = data.error;
+          if (res.ok && data.ok) {
+            showMessage('ثبت‌نام با موفقیت انجام شد ✅', true);
+            setTimeout(() => { location.href = '/login.html'; }, 1000);
+          } else if (data.error === 'username_taken') {
+            showMessage('این آیدی قبلاً استفاده شده ❌', false);
           } else {
-            msg.textContent = 'Registration failed';
+            showMessage('خطا در ثبت‌نام: ' + (data.error || 'server_error'), false);
           }
         } catch (err) {
-          msg.textContent = 'Connection error';
           console.error(err);
+          showMessage('خطا در ارتباط با سرور', false);
         }
       });
-    })();
+    });
   </script>
+</head>
+<body>
+  <div class="card">
+    <h1>ثبت‌نام</h1>
+    <p>برای ساخت حساب جدید، اطلاعات زیر را وارد کنید</p>
+
+    <form id="registerForm">
+      <input id="displayName" type="text" placeholder="نام نمایشی (مثلاً پارسا)" required />
+      <input id="username" type="text" placeholder="آیدی کاربری (مثلاً parsa123)" required />
+      <input id="password" type="password" placeholder="رمز عبور" required />
+      <button type="submit">ثبت‌نام</button>
+    </form>
+
+    <div id="msg" class="msg"></div>
+
+    <div class="links">
+      <a href="/login.html">ورود</a> |
+      <a href="/access.html">بازگشت</a>
+    </div>
+  </div>
 </body>
 </html>
