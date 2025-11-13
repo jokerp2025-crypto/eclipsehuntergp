@@ -4,7 +4,6 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ثبت‌نام — Eclipse Hunter</title>
-  <link rel="stylesheet" href="style.css">
   <style>
     :root {
       --tg-blue:#0088cc;
@@ -23,8 +22,8 @@
     input { padding:12px 14px; border-radius:12px; border:1px solid #e6eef6; font-size:15px; direction:ltr; }
     button { padding:12px; border-radius:12px; border:none; background:var(--tg-blue); color:#fff; font-weight:600; font-size:15px; cursor:pointer; transition:0.2s; }
     button:hover { opacity:0.9; }
-    .msg { text-align:center; font-size:13px; margin-top:10px; min-height:20px; }
-    .links { text-align:center; margin-top:10px; }
+    .msg { text-align:center; font-size:14px; margin-top:12px; min-height:22px; transition:all 0.2s ease; }
+    .links { text-align:center; margin-top:14px; }
     .links a { color:var(--tg-blue); text-decoration:none; font-weight:600; margin:0 5px; }
   </style>
 
@@ -45,9 +44,11 @@
         const password = document.getElementById('password').value.trim();
 
         if (!username  !displayName  !password) {
-          showMessage('لطفاً تمام فیلدها را پر کنید', false);
+          showMessage(⚠️ لطفاً تمام فیلدها را پر کنید', false);
           return;
         }
+
+        showMessage('در حال ثبت‌نام...', true);
 
         try {
           const res = await fetch('/auth/register', {
@@ -57,17 +58,18 @@
           });
 
           const data = await res.json();
+
           if (res.ok && data.ok) {
-            showMessage('ثبت‌نام با موفقیت انجام شد ✅', true);
-            setTimeout(() => { location.href = '/login.html'; }, 1000);
+            showMessage('✅ ثبت‌نام با موفقیت انجام شد، در حال انتقال...', true);
+            setTimeout(() => location.href = '/login.html', 2000);
           } else if (data.error === 'username_taken') {
-            showMessage('این آیدی قبلاً استفاده شده ❌', false);
+            showMessage('❌ این آیدی قبلاً استفاده شده است', false);
           } else {
-            showMessage('خطا در ثبت‌نام: ' + (data.error || 'server_error'), false);
+            showMessage('⚠️ خطا در ثبت‌نام: ' + (data.error || 'مشکل در سرور'), false);
           }
         } catch (err) {
           console.error(err);
-          showMessage('خطا در ارتباط با سرور', false);
+          showMessage('❌ خطا در ارتباط با سرور', false);
         }
       });
     });
