@@ -1,0 +1,45 @@
+/* Minimal Telegram-ish styling, responsive */
+:root{
+  --bg:#ffffff; --text:#1f2937; --muted:#6b7280;
+  --accent:#2EA6DF; --bubble:#e6f7ff; --mine:#c6f0d6;
+}
+body[data-theme='dark']{ --bg:#0f1724; --text:#e6eef6; --muted:#90a0b0; --accent:#2EA6DF; --bubble:#0b1220; --mine:#123423; }
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial;background:var(--bg);color:var(--text);height:100vh;display:flex;align-items:stretch}
+.app{display:flex;flex:1;height:100vh;}
+
+/* sidebar */
+.sidebar{width:300px;border-right:1px solid rgba(0,0,0,0.06);background:var(--bg);display:flex;flex-direction:column}
+.brand{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid rgba(0,0,0,0.04)}
+.brand h1{font-size:16px;margin:0}
+.search{padding:8px 12px}
+.search input{width:100%;padding:8px;border-radius:8px;border:1px solid rgba(0,0,0,0.08)}
+.users{flex:1;overflow:auto;padding:8px}
+.users h3{margin:6px 8px;color:var(--muted);font-size:13px}
+#userList{list-style:none;margin:0;padding:0}
+.userItem{display:flex;gap:8px;padding:8px;border-radius:8px;align-items:center;cursor:pointer}
+.userItem:hover{background:rgba(0,0,0,0.03)}
+.userItem img.avatar{width:44px;height:44px;border-radius:50%;object-fit:cover}
+.userItem .meta .name{font-weight:600}
+.userItem .meta .lastseen{font-size:12px;color:var(--muted)}
+
+/* main pane */
+.main{flex:1;display:flex;flex-direction:column;height:100vh}
+.chat-header{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid rgba(0,0,0,0.06)}
+.messages{flex:1;overflow:auto;padding:18px;display:flex;flex-direction:column;gap:10px}
+.msg{display:flex;align-items:end;gap:8px;max-width:75%}
+.msg.mine{align-self:flex-end;flex-direction:row-reverse}
+.msg .bubble{background:var(--bubble);padding:10px 12px;border-radius:12px;box-shadow:0 1px 0 rgba(0,0,0,0.02)}
+.msg.mine .bubble{background:var(--mine)}
+.msg .time{font-size:11px;color:var(--muted)}
+
+/* composer */
+.composer{display:flex;padding:10px;border-top:1px solid rgba(0,0,0,0.06);gap:8px}
+.composer input[type="text"], .composer input[type="file"]{flex:1;padding:8px;border-radius:8px;border:1px solid rgba(0,0,0,0.06)}
+.composer button{padding:8px 12px;border-radius:8px;border:0;background:var(--accent);color:white;cursor:pointer}
+
+/* responsive */
+@media (max-width:800px){
+  .sidebar{width:80px}
+  .userItem .meta{display:none}
+}

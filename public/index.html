@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Eclipse Hunter</title>
+  <link rel="icon" href="https://cdn-icons-png.flaticon.com/512/919/919828.png" type="image/png">
+  <style>
+    body {
+      background-color: #0f172a;
+      color: #38bdf8;
+      font-family: Arial, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      margin: 0;
+    }
+    h1 {
+      font-size: 2.2em;
+      margin-bottom: 20px;
+      color: #38bdf8;
+    }
+    .loader {
+      border: 4px solid #1e293b;
+      border-top: 4px solid #38bdf8;
+      border-radius: 50%;
+      width: 45px;
+      height: 45px;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    p {
+      margin-top: 20px;
+      font-size: 14px;
+      color: #94a3b8;
+    }
+  </style>
+  <meta http-equiv="refresh" content="1.5; URL='login.html'">
+</head>
+<body>
+  <h1>Welcome to Eclipse Hunter</h1>
+  <div class="loader"></div>
+  <p>Loading secure access...</p>
+</body>
+</html>

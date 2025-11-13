@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="fa">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Register - Eclipse Hunter</title>
+  <style>
+    :root{
+      --tg-blue:#0088cc;
+      --bg:#f6f9fc;
+      --card:#ffffff;
+      --muted:#6b7280;
+    }
+    *{box-sizing:border-box;font-family:system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial}
+    html,body{height:100%;margin:0;background:linear-gradient(180deg,#eaf6fb 0%,var(--bg) 100%);color:#111}
+    .wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+    .card{width:100%;max-width:460px;background:var(--card);border-radius:16px;box-shadow:0 8px 30px rgba(2,6,23,0.06);padding:20px}
+    h1{margin:0 0 8px;font-size:20px;color:var(--tg-blue);text-align:center}
+    p.lead{margin:0 0 16px;text-align:center;color:var(--muted);font-size:14px}
+    form{display:flex;flex-direction:column;gap:10px}
+    .input{width:100%;padding:12px 14px;border-radius:12px;border:1px solid #e6eef6;background:transparent;font-size:15px}
+    .file{display:flex;gap:8px;align-items:center;padding:10px;border-radius:12px;border:1px dashed #e6eef6;color:var(--muted);cursor:pointer}
+    .btn{display:inline-flex;align-items:center;justify-content:center;padding:12px;border-radius:12px;border:0;background:var(--tg-blue);color:#fff;font-weight:600;cursor:pointer;font-size:15px}
+    .muted{color:var(--muted);font-size:13px;text-align:center}
+    .links{display:flex;justify-content:center;margin-top:10px;gap:8px}
+    .msg{margin-top:10px;text-align:center;font-size:13px;color:#b91c1c;min-height:20px}
+    @media(min-width:720px){ .card{padding:28px} h1{font-size:22px} }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card" role="main" aria-labelledby="title">
+      <h1 id="title">Eclipse Hunter</h1>
+      <p class="lead">برای دسترسی ابتدا رمز سایت را وارد و سپس حساب خود را بسازید</p>
+
+      <form id="registerForm" enctype="multipart/form-data" autocomplete="off" novalidate>
+        <input id="sitePassword" name="sitePassword" class="input" type="password" placeholder="Site password (رمز سایت)" required />
+        <input id="name" name="displayName" class="input" type="text" placeholder="Full name (نمایش)" required />
+        <input id="username" name="username" class="input" type="text" placeholder="Username (آیدی)" required />
+        <input id="password" name="password" class="input" type="password" placeholder="Account password (رمز حساب)" required />
+        <label class="file" for="avatar" id="fileLabel">Upload avatar (اختیاری)</label>
+        <input id="avatar" name="avatar" type="file" accept="image/*" style="display:none" />
+        <button type="submit" class="btn">Create account</button>
+      </form>
+
+      <div class="links muted">
+        <span>Have an account?</span>
+        <a href="/login.html" style="color:var(--tg-blue);text-decoration:none;font-weight:600;margin-left:6px">Login</a>
+      </div>
+
+      <div id="message" class="msg" aria-live="polite"></div>
+    </div>
+  </div>
+
+  <script>
+    (function(){
+      const form = document.getElementById('registerForm');
+      const avatar = document.getElementById('avatar');
+      const fileLabel = document.getElementById('fileLabel');
+      const msg = document.getElementById('message');
+
+      fileLabel.addEventListener('click', () => avatar.click());
+      avatar.addEventListener('change', () => {
+        const f = avatar.files[0];
+        fileLabel.textContent = f ? (f.name.length>26 ? f.name.slice(0,24)+'…' : f.name) : 'Upload avatar (اختیاری)';
+      });
+
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        msg.textContent = '';
+        msg.style.color = '#b91c1c';
+
+        const sitePassword = document.getElementById('sitePassword').value.trim();
+        const displayName = document.getElementById('name').value.trim();
+        const username = document.getElementById('username').value.trim();
+        const password = document.getElementById('password').value;
+
+        if(!sitePassword || !displayName || !username || !password){
+          msg.textContent = 'Please fill required fields';
+          return;
+        }
+
+        const fd = new FormData();
+        fd.append('sitePassword', sitePassword);
+        fd.append('displayName', displayName);
+        fd.append('username', username);
+        fd.append('password', password);
+        if(avatar.files[0]) fd.append('avatar', avatar.files[0]);
+
+        try {
+          const res = await fetch('/auth/register', {
+            method: 'POST',
+            body: fd
+          });
+          const data = await res.json();
+          if(res.ok && data && data.user){
+            msg.style.color = '#059669';
+            msg.textContent = 'Registration successful — منتقل می‌شوید به صفحه ورود';
+            setTimeout(()=> location.href = '/login.html', 900);
+          } else if (data && data.error) {
+            msg.textContent = data.error;
+          } else {
+            msg.textContent = 'Registration failed';
+          }
+        } catch (err) {
+          msg.textContent = 'Connection error';
+          console.error(err);
+        }
+      });
+    })();
+  </script>
+</body>
+</html>

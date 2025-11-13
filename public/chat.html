@@ -1,0 +1,1120 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Chat — Enhanced ( Redesigned )</title>
+
+  <!-- socket.io (CDN) -->
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+
+  <style>
+    :root{
+      --radius:14px; --shadow: 0 8px 30px rgba(2,6,23,0.10); --text:#0f172a; --muted:#64748b;
+      --bg:#f6f9fc; --card:#fff; --accent:#0088cc; --sent-gradient: linear-gradient(135deg,#dcfce7,#bbf7d0); --recv-bg:#fff;
+    }
+    html[data-theme="blue"]{ --accent:#0ea5e9; --bg:#f0f6fb; --sent-gradient: linear-gradient(135deg,#8fd3f4 0%,#84fab0 100%); }
+    html[data-theme="green"]{ --accent:#16a34a; --bg:#f1fbf4; --sent-gradient: linear-gradient(135deg,#bbf7d0 0%,#86efac 100%); }
+    html[data-theme="light"]{ --accent:#0ea5e9; --bg:#ffffff; --card:#fbfdff; --text:#051025; --muted:#6b7280; --sent-gradient: linear-gradient(135deg,#e6f7ff 0%,#dff3ff 100%); }
+    html[data-theme="dark"]{ --accent:#60a5fa; --bg:#0b1220; --card:#071026; --text:#e6eef8; --muted:#94a3b8; --sent-gradient: linear-gradient(135deg,#0f172a 0%,#1f2937 100%); --recv-bg:#0b1726; }
+    html[data-theme="night"]{ --accent:#a78bfa; --bg:#020617; --card:#041022; --text:#e6eaf2; --muted:#9aa7c0; --sent-gradient: linear-gradient(135deg,#2b1326 0%,#2e1a4a 100%); --recv-bg:#041022; }
+
+    *{box-sizing:border-box}
+    body{ margin:0; font-family:Inter, "Segoe UI", Roboto, "Helvetica Neue", Arial; height:100vh; color:var(--text); background:var(--bg); -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale; }
+    .app{ display:grid; grid-template-columns:320px 1fr; gap:18px; height:100vh; padding:18px; align-items:stretch; }
+
+    .sidebar{ background:var(--card); border-radius:var(--radius); padding:14px; box-shadow:var(--shadow); display:flex; flex-direction:column; gap:12px; overflow:auto; }
+    .brand{ font-weight:800; color:var(--accent); font-size:18px }
+    .search{ display:flex; gap:8px; align-items:center }
+    .search input{ flex:1; padding:10px; border-radius:10px; border:1px solid rgba(15,23,42,0.06); outline:none }
+    .users{ display:flex; flex-direction:column; gap:8px; margin-top:6px }
+
+    .user{ display:flex; align-items:center; gap:10px; padding:10px; border-radius:10px; cursor:pointer; transition:all .18s ease; position:relative; }
+    .user:hover{ transform:translateX(-6px); box-shadow:0 6px 18px rgba(0,0,0,0.06) }
+    .avatar{ width:48px; height:48px; border-radius:12px; background:linear-gradient(135deg, rgba(0,0,0,0.06), rgba(0,0,0,0.02)); display:flex; align-items:center; justify-content:center; font-weight:700; color:var(--card); }
+    .user .meta{ display:flex; flex-direction:column; gap:2px; min-width:0 }
+    .user .meta .name{ font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .user .meta .sub{ font-size:12px; color:var(--muted) }
+    .badge{ background:var(--accent); color:#fff; padding:4px 8px; border-radius:999px; font-size:12px; display:none }
+
+    .chat{ display:flex; flex-direction:column; height:100%; }
+    .chat-header{ display:flex; align-items:center; gap:12px; padding:12px 18px; border-radius:12px; background:var(--card); box-shadow:var(--shadow); }
+    .conv-avatar{ width:56px; height:56px; border-radius:12px; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:18px }
+    .conv-meta{ display:flex; flex-direction:column }
+    .conv-meta .name{ font-weight:700; font-size:16px }
+    .conv-meta .status{ font-size:12px; color:var(--muted) }
+    .header-actions{ margin-left:auto; display:flex; gap:8px; align-items:center }
+
+    .messages{ flex:1; margin-top:12px; overflow:auto; padding:20px; border-radius:12px; background-size:cover; background-position:center; }
+    .msgWrap{ margin-bottom:12px; display:flex; flex-direction:column; gap:6px; max-width:75% }
+    .msg{ padding:10px 14px; border-radius:14px; box-shadow: 0 4px 10px rgba(2,6,23,0.04); animation:fadeIn .18s ease; word-break:break-word; }
+    .sent{ margin-left:auto; background:var(--sent-gradient); color:#052036; border-radius:18px 18px 6px 18px; }
+    .recv{ background:var(--recv-bg); color:var(--text); border-radius:18px 18px 18px 6px; border:1px solid rgba(15,23,42,0.04) }
+    .msg .time{ font-size:11px; color:var(--muted); margin-top:6px; text-align:left }
+    @keyframes fadeIn{ from{opacity:0; transform:translateY(6px)} to{opacity:1; transform:translateY(0)} }
+
+    .composer{ display:flex; gap:8px; padding:12px 14px; border-radius:12px; background:var(--card); box-shadow:var(--shadow); align-items:center; margin-top:12px }
+    .composeBox{ flex:1; min-height:44px; padding:10px 12px; border-radius:10px; border:1px solid rgba(15,23,42,0.06); outline:none; background:transparent; white-space:pre-wrap; }
+    .composeBox.empty:before{ content: attr(placeholder); color: var(--muted); pointer-events: none; display:block; }
+    .btn{ background:var(--accent); color:#fff; border:0; padding:10px 14px; border-radius:10px; cursor:pointer; font-weight:600 }
+    .btn.secondary{ background:transparent; border:1px solid rgba(15,23,42,0.06); color:var(--text) }
+
+    .menu{ position:relative }
+    .menuPanel{ position:absolute; right:0; top:48px; background:var(--card); border-radius:12px; padding:8px; box-shadow:var(--shadow); display:none; min-width:160px }
+    .menuPanel.visible{ display:block }
+    .menuPanel div{ padding:8px 10px; cursor:pointer; border-radius:8px }
+    .menuPanel div:hover{ background:rgba(0,0,0,0.04) }
+
+    #msgCtx{ position:fixed; z-index:2200; display:none; min-width:180px; border-radius:10px; overflow:hidden }
+    #msgCtx.visible{ display:block }
+
+    .drawer{ position:fixed; top:0; bottom:0; right:18px; width:360px; background:var(--card); box-shadow: 0 30px 80px rgba(2,6,23,0.3); border-radius:14px; padding:16px; transform:translateX(110%); transition:transform .28s cubic-bezier(.2,.9,.3,1); z-index:3000; overflow:auto; }
+    .drawer.open{ transform:translateX(0) }
+    .tabs{ display:flex; gap:8px; margin-bottom:12px }
+    .tab{ padding:8px 12px; border-radius:10px; cursor:pointer; border:1px solid transparent }
+    .tab.active{ background:linear-gradient(90deg, rgba(0,0,0,0.03), rgba(0,0,0,0.01)); border-color:rgba(0,0,0,0.06) }
+
+    .field{ display:flex; flex-direction:column; gap:6px; margin-bottom:10px }
+    .field input[type="text"], .field textarea, .field select{ padding:8px 10px; border-radius:8px; border:1px solid rgba(15,23,42,0.06) }
+    .profilePreview{ display:flex; gap:10px; align-items:center; margin-bottom:8px }
+
+    @media (max-width:900px){ .app{ grid-template-columns:1fr; padding:12px; } .sidebar{ display:none } .drawer{ right:0; left:0; width:auto; border-radius:10px; transform:translateY(110%) } .drawer.open{ transform:translateY(0) } }
+
+    .muted{ color:var(--muted); font-size:13px }
+    .small{ font-size:13px }
+  </style>
+</head>
+<body>
+
+  <div class="app">
+    <div class="sidebar" aria-label="فهرست گفتگوها">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div class="brand">Eclipse</div>
+        <div style="display:flex;gap:8px">
+          <button id="openSettings" class="btn secondary">تنظیمات</button>
+        </div>
+      </div>
+
+      <div class="search">
+        <input id="searchUsers" placeholder="جستجو کاربران..." aria-label="جستجو گفتگوها">
+        <button id="newChatBtn" class="btn">سردفتری</button>
+      </div>
+
+      <div class="users" id="userList" aria-live="polite"></div>
+
+      <div style="margin-top:auto;display:flex;gap:8px;justify-content:space-between;align-items:center">
+        <div class="muted small">نسخه طراحی‌شده</div>
+        <div><button id="logoutBtn" class="btn secondary">خروج</button></div>
+      </div>
+    </div>
+
+    <div class="chat" role="main">
+      <div class="chat-header" aria-label="هدر گفتگو">
+        <div class="conv-avatar" id="convAvatar">UH</div>
+        <div class="conv-meta" style="margin-right:8px">
+          <div id="convName" class="name">انتخاب کنید</div>
+          <div id="convStatus" class="status">برای شروع یک گفتگو انتخاب کنید</div>
+        </div>
+
+        <div class="header-actions" role="toolbar" aria-label="عملیات">
+          <div class="menu">
+            <button id="convMenuBtn" class="btn secondary" aria-haspopup="true" aria-expanded="false">⋯</button>
+            <div id="convMenu" class="menuPanel" role="menu" aria-hidden="true">
+              <div id="menuSearch">🔎 جستجو پیام‌ها</div>
+              <div id="menuBlock">⛔ بلاک</div>
+              <div id="menuClear">🗑️ پاک کردن تاریخچه</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="messages" class="messages" role="log" aria-live="polite"></div>
+
+      <div class="composer" role="region" aria-label="قسمت نوشتن پیام">
+        <div id="replyArea" style="display:none;background:rgba(0,0,0,0.04);padding:8px;border-radius:8px;margin-right:6px">در حال پاسخ</div>
+        <div id="composerBox" class="composeBox empty" contenteditable="true" role="textbox" aria-multiline="true" placeholder="پیام خود را بنویسید..."></div>
+        <button id="sendBtn" class="btn">ارسال</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="msgCtx" role="menu" aria-hidden="true"></div>
+
+  <aside id="settingsDrawer" class="drawer" aria-hidden="true">
+    <h3>تنظیمات</h3>
+    <div class="tabs" role="tablist">
+      <div class="tab active" data-tab="profile">پروفایل</div>
+      <div class="tab" data-tab="appearance">ظاهر</div>
+    </div>
+
+    <div id="tabProfile" class="tabPanel">
+      <div class="profilePreview">
+        <div id="previewAvatar" style="width:64px;height:64px;border-radius:12px;background:#888;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700"></div>
+        <div style="flex:1">
+          <div id="previewName" style="font-weight:700">نام شما</div>
+          <div id="previewId" class="muted small">@your_id</div>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>نام نمایشی</label>
+        <input id="profileName" type="text" placeholder="نام نمایشی">
+      </div>
+      <div class="field">
+        <label>آیدی محلی (قابل تغییر)</label>
+        <input id="profileId" type="text" placeholder="مثال: ali_123">
+      </div>
+      <div class="field">
+        <label>بیو</label>
+        <textarea id="profileBio" rows="3" placeholder="یک بیو کوتاه بنویسید..."></textarea>
+      </div>
+      <div class="field">
+        <label>آواتار</label>
+        <input id="avatarFile" type="file" accept="image/*">
+      </div>
+
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <button id="saveProfile" class="btn">ذخیره پروفایل</button>
+        <button id="closeSettings" class="btn secondary">بستن</button>
+      </div>
+    </div>
+
+    <div id="tabAppearance" class="tabPanel" style="display:none">
+      <div class="field">
+        <label>تم‌ها</label>
+        <select id="themeSelect">
+          <option value="blue">آبی (پیش‌فرض)</option>
+          <option value="green">سبز</option>
+          <option value="light">روشن (مینیمال)</option>
+          <option value="dark">تیره</option>
+          <option value="night">نایت</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label>فعال‌سازی نایت مود خودکار (براساس ساعت)</label>
+        <select id="autoNight">
+          <option value="off">خاموش</option>
+          <option value="on">روشن</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label>تصاویر پس‌زمینه گفتگو (برای هر کاربر ذخیره می‌شود)</label>
+        <input id="bgFile" type="file" accept="image/*">
+      </div>
+
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <button id="saveAppearance" class="btn">ذخیره ظاهر</button>
+      </div>
+    </div>
+  </aside>
+
+<script>
+/* Helpers */
+function escapeHtml(s){ return String(s||'').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function capitalizeFirst(s){ return s && s.length ? s.charAt(0).toUpperCase() + s.slice(1) : s; }
+function fileToDataUrl(file){ return new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(r.result); r.onerror=rej; r.readAsDataURL(file); }); }
+function stringToGradient(s){ s=String(s||''); let h=0; for(let i=0;i<s.length;i++) h=(h<<5)-h+s.charCodeAt(i); const hue=Math.abs(h)%360; return `linear-gradient(135deg,hsl(${hue} 70% 45%), hsl(${(hue+40)%360} 70% 55%))`; }
+
+/* State */
+const token = localStorage.getItem('token') || sessionStorage.getItem('token') || 'demo-token';
+function parseJwt(t){ try { return JSON.parse(atob(String(t).split('.')[1].replace(/-/g,'+').replace(/_/g,'/'))); } catch(e){ return {}; } }
+function myId(){ try { const t = parseJwt(token); return t.id || 'me'; } catch(e){ return 'me'; }}
+
+let users = [], currentConv = null, messages = [], socket = null;
+
+/* ---- Small fixes added in this audited version ----
+   - setConvStatus implemented to avoid ReferenceError
+   - composer empty-class toggling so placeholder appears reliably
+   - autoNight select listener saved to localStorage and schedule applied
+   - defensive guards for functions that used possibly-null values
+   - added a configurable server URL (localStorage 'chat_server_url')
+*/
+
+/* conv status UI (was missing in previous file) */
+function setConvStatus(text){
+  const el = document.getElementById('convStatus');
+  if(el) el.textContent = String(text || '');
+}
+
+/* Socket init */
+function initSocket(){
+  const serverUrl = localStorage.getItem('chat_server_url') || null;
+  try{
+    if(typeof io === 'undefined'){ socket = { on: ()=>{}, emit: ()=>{}, connected: false }; return; }
+    const opts = { auth: { token } };
+    socket = serverUrl ? io(serverUrl, opts) : io(opts);
+
+    socket.on('connect', ()=>{ try{ socket.emit('presence:register'); }catch(e){} loadUsers(); setConvStatus('متصل'); });
+    socket.on('connect_error', (err)=>{ console.warn('socket connect_error', err); setConvStatus('خطا در اتصال'); });
+    socket.on('disconnect', ()=>{ setConvStatus('قطع شده'); });
+
+    socket.on('private:joined', ({ otherId, convId, messages: msgs } = {})=>{
+      if(!currentConv) return; if(String(currentConv.otherId) !== String(otherId)) return;
+      currentConv.convId = convId; messages = msgs || []; renderMessages(); setConvStatus('گفتگو باز شد'); applyBackgroundFor(otherId);
+    });
+
+    socket.on('load messages', ({ convId, messages: msgs } = {})=>{ if(!currentConv) return; if(String(convId) !== String(currentConv.convId)) return; messages = msgs || []; renderMessages(); });
+
+    socket.on('message:new', (msg)=>{
+      if(!msg) return;
+      if(currentConv && String(msg.conversationId) === String(currentConv.convId)){ messages.push(msg); appendMessage(msg); }
+      else {
+        try{ const el = document.querySelector('[data-id="'+msg.senderId+'"] .badge'); if(el){ const prev = Number(el.textContent||0) || 0; el.style.display='inline-block'; el.textContent = (prev + 1).toString(); localStorage.setItem('badge_'+msg.senderId, el.textContent); } }catch(e){}
+      }
+    });
+
+    socket.on('message:deleted', ({ messageId } = {})=>{ const el = document.getElementById('m-'+messageId); if(el){ const msgDiv = el.querySelector('.msg'); if(msgDiv) msgDiv.innerHTML = '<i>deleted</i>'; } });
+    socket.on('message:updated', (msg)=>{ if(!msg || !msg._id) return; const el = document.getElementById('m-'+msg._id); if(el){ const t = el.querySelector('.msg .text'); if(t) t.innerHTML = escapeHtml(msg.text||''); } });
+
+  }catch(e){ console.warn('initSocket failed', e); socket = { on: ()=>{}, emit: ()=>{}, connected: false }; }
+}
+
+/* Users */
+async function loadUsers(){
+  try{
+    const res = await fetch('/users', { headers: { 'Authorization': 'Bearer '+token } });
+    if(!res.ok){ users = demoUsers(); renderUsers(); return; }
+    const data = await res.json(); users = (data && data.users) ? data.users : demoUsers(); renderUsers();
+  }catch(e){ console.warn('loadUsers failed, using demo', e); users = demoUsers(); renderUsers(); }
+}
+function demoUsers(){ return [{_id:'u1', displayName:'سارا', username:'sara', online:true},{_id:'u2', displayName:'علی', username:'ali', online:false},{_id:'u3', displayName:'مریم', username:'maryam', online:true}]; }
+
+/* Render */
+function renderUsers(){
+  const list = document.getElementById('userList'); if(!list) return; list.innerHTML='';
+  users.forEach(u=>{
+    const row = document.createElement('div'); row.className='user'; row.dataset.id = u._id;
+    const localName = localStorage.getItem('name_'+u._id) || u.displayName || u.username || 'User';
+    const badgeCount = localStorage.getItem('badge_'+u._id) || '';
+    row.innerHTML = `
+      <div class="avatar" style="background:${stringToGradient(u._id)}">${escapeHtml((localName||'U').slice(0,2).toUpperCase())}</div>
+      <div class="meta"><div class="name">${escapeHtml(localName)}</div><div class="sub">${u.online?'آنلاین':'آفلاین'}</div></div>
+      <div style="margin-left:auto"><span class="badge" style="${badgeCount? 'display:inline-block' : 'display:none'}">${escapeHtml(badgeCount)}</span></div>
+    `;
+    row.addEventListener('click', ()=> openConversation(u));
+    list.appendChild(row);
+  });
+}
+
+function openConversation(user){
+  if(!user || !user._id) return;
+  localStorage.removeItem('badge_'+user._id);
+  const badgeEl = document.querySelector('[data-id="'+user._id+'"] .badge'); if(badgeEl){ badgeEl.style.display='none'; badgeEl.textContent=''; }
+  const nameEl = document.getElementById('convName'); const avatarEl = document.getElementById('convAvatar');
+  if(nameEl) nameEl.textContent = localStorage.getItem('name_'+user._id) || user.displayName || user.username;
+  if(avatarEl) avatarEl.textContent = (localStorage.getItem('name_'+user._id)||user.displayName||user.username||'U').slice(0,2).toUpperCase();
+  currentConv = { otherId: user._id, convId: null };
+  try{ socket.emit('private:join', { otherId: user._id }); }catch(e){}
+  setConvStatus('در حال اتصال...');
+  const cont = document.getElementById('messages'); if(cont) cont.innerHTML = '<div class="muted">در حال بارگذاری پیام‌ها…</div>';
+  applyBackgroundFor(user._id);
+}
+
+function applyBackgroundFor(otherId){ if(!otherId) return; const bg = localStorage.getItem('bg_'+otherId); const cont = document.getElementById('messages'); if(!cont) return; if(bg){ cont.style.backgroundImage = 'url('+bg+')'; cont.style.backgroundSize='cover'; } else { cont.style.backgroundImage = 'none'; } }
+
+function renderMessages(){ const cont = document.getElementById('messages'); if(!cont) return; cont.innerHTML=''; (messages || []).forEach(m => appendMessage(m)); cont.scrollTop = cont.scrollHeight; }
+
+function appendMessage(msg){ const cont = document.getElementById('messages'); if(!cont || !msg) return; const wrap = document.createElement('div'); wrap.id = 'm-'+(msg._id || ('tmp-'+Date.now())); wrap.className='msgWrap'; const box = document.createElement('div'); box.className = 'msg '+(String(msg.senderId)===String(myId())?'sent':'recv'); const text = document.createElement('div'); text.className='text'; text.innerHTML = escapeHtml(msg.text||''); box.appendChild(text); const when = document.createElement('div'); when.className='time'; try{ when.textContent = new Date(msg.createdAt||Date.now()).toLocaleString(); }catch(e){ when.textContent = ''; } box.appendChild(when); box.addEventListener('contextmenu', (ev)=>{ ev.preventDefault(); showMessageMenu(ev.clientX, ev.clientY, msg); }); wrap.appendChild(box); cont.appendChild(wrap); cont.scrollTop = cont.scrollHeight; }
+
+/* Context menu */
+function showMessageMenu(x,y,msg){
+  const menu = document.getElementById('msgCtx'); if(!menu) return;
+  menu.innerHTML = '';
+  const vw = Math.max(document.documentElement.clientWidth || 0, window.innerWidth || 0);
+  const vh = Math.max(document.documentElement.clientHeight || 0, window.innerHeight || 0);
+  menu.style.left = Math.min(Math.max(0, x), vw - 220) + 'px';
+  menu.style.top = Math.min(Math.max(0, y), vh - 160) + 'px';
+  menu.classList.add('visible'); menu.style.display = 'block';
+  menu.style.background = getComputedStyle(document.documentElement).getPropertyValue('--card') || '#fff';
+  menu.style.border = '1px solid rgba(15,23,42,0.06)'; menu.setAttribute('aria-hidden','false');
+  const add = (t,fn)=>{ const it = document.createElement('div'); it.style.padding='10px 12px'; it.style.cursor='pointer'; it.textContent = t; it.onclick = ()=>{ try{ fn(); }catch(e){} hideContext(); }; it.onmouseenter = ()=> it.style.background='rgba(0,0,0,0.03)'; it.onmouseleave = ()=> it.style.background='transparent'; menu.appendChild(it); };
+  add('پاسخ', ()=>{ const ra = document.getElementById('replyArea'); if(ra){ ra.style.display='block'; ra.textContent = 'در حال پاسخ به: '+(msg.text||'[فایل]'); } });
+  add('واکنش 👍', ()=>{ try{ socket.emit('message:react',{ messageId: msg._id, emoji: '👍' }); }catch(e){} });
+  add('حذف برای من', ()=>{ try{ socket.emit('message:delete',{ messageId: msg._id, forAll:false }); }catch(e){} const el = document.getElementById('m-'+msg._id); if(el) el.querySelector('.msg').innerHTML = '<i>deleted</i>'; });
+  add('حذف برای همه', ()=>{ try{ socket.emit('message:delete',{ messageId: msg._id, forAll:true }); }catch(e){} });
+}
+
+function hideContext(){ const menu = document.getElementById('msgCtx'); if(menu){ menu.innerHTML=''; menu.classList.remove('visible'); menu.style.display='none'; menu.setAttribute('aria-hidden','true'); } }
+document.addEventListener('click', (ev)=>{ const menu=document.getElementById('msgCtx'); if(menu && menu.style.display==='block' && !menu.contains(ev.target)) hideContext(); });
+
+/* Send message */
+async function sendMessage(){
+  const composerEl = document.getElementById('composerBox'); if(!composerEl) return;
+  const txtRaw = (composerEl.textContent || composerEl.innerText || '').replace(/\u00A0/g,' ');
+  const txt = String(txtRaw).trim(); if(!txt) return; if(!currentConv){ alert('ابتدا یک کاربر انتخاب کنید'); return; }
+  if(!currentConv.convId){ try{ socket.emit('private:message:pending', { otherId: currentConv.otherId, text: txt }); }catch(e){} composerEl.innerText = ''; const fake = { _id: 'tmp-'+Date.now(), senderId: myId(), createdAt: Date.now(), text: txt, conversationId: 'pending' }; messages.push(fake); appendMessage(fake); return; }
+  try{ socket.emit('private:message', { convId: currentConv.convId, text: txt }); }catch(e){} composerEl.innerText = '';
+}
+
+/* Menus wiring */
+function wireMenuHandlers(){
+  const convMenuBtn = document.getElementById('convMenuBtn'); const convMenu = document.getElementById('convMenu');
+  if(convMenuBtn && convMenu){ convMenuBtn.addEventListener('click', (e)=>{ convMenu.classList.toggle('visible'); const expanded = convMenu.classList.contains('visible'); convMenuBtn.setAttribute('aria-expanded', expanded ? 'true' : 'false'); convMenu.setAttribute('aria-hidden', expanded ? 'false' : 'true'); e.stopPropagation(); }); }
+  document.addEventListener('click', (e)=>{ const menu = document.getElementById('convMenu'); const btn = document.getElementById('convMenuBtn'); if(!menu || !btn) return; if(!menu.contains(e.target) && !btn.contains(e.target)) { menu.classList.remove('visible'); menu.setAttribute('aria-hidden','true'); btn.setAttribute('aria-expanded','false'); } });
+  const menuClearBtn = document.getElementById('menuClear');
+  if(menuClearBtn) menuClearBtn.addEventListener('click', async function(){ if(!currentConv || !currentConv.convId){ alert('ابتدا گفتگو را باز کنید'); return; } if(!confirm('آیا تاریخچه پاک شود؟')) return; try{ const res = await fetch('/conversations/'+currentConv.convId+'/messages', { method:'DELETE', headers:{ 'Authorization':'Bearer '+token } }); let j = {}; try{ j = await res.json(); }catch(e){ j = { ok: res.ok }; } if(j.ok){ messages = []; renderMessages(); alert('تاریخچه پاک شد'); } else alert('ناموفق'); }catch(e){ alert('خطا در پاک‌سازی'); } });
+}
+
+/* Settings wiring */
+function wireSettingsHandlers(){
+  const drawer = document.getElementById('settingsDrawer'); const openSettingsBtn = document.getElementById('openSettings');
+  if(openSettingsBtn) openSettingsBtn.addEventListener('click', ()=>{ if(drawer){ drawer.classList.add('open'); drawer.setAttribute('aria-hidden','false'); loadProfileToForm(); } });
+  const closeSettingsBtn = document.getElementById('closeSettings'); if(closeSettingsBtn) closeSettingsBtn.addEventListener('click', ()=>{ if(drawer){ drawer.classList.remove('open'); drawer.setAttribute('aria-hidden','true'); } });
+
+  document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', ()=>{ document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active')); t.classList.add('active'); const tab = t.dataset.tab; document.querySelectorAll('.tabPanel').forEach(p => p.style.display = 'none'); const target = document.getElementById('tab'+capitalizeFirst(tab)); if(target) target.style.display = 'block'; }));
+
+  const saveProfileBtn = document.getElementById('saveProfile');
+  if(saveProfileBtn) saveProfileBtn.addEventListener('click', async ()=>{
+    const nameEl = document.getElementById('profileName'); const idEl = document.getElementById('profileId'); const bioEl = document.getElementById('profileBio'); const fileEl = document.getElementById('avatarFile');
+    const name = nameEl ? nameEl.value.trim() : ''; const id = idEl ? idEl.value.trim() : ''; const bio = bioEl ? bioEl.value.trim() : ''; const file = (fileEl && fileEl.files) ? fileEl.files[0] : null;
+    if(name) localStorage.setItem('me_name', name); if(id) localStorage.setItem('me_id', id); if(bio) localStorage.setItem('me_bio', bio);
+    if(file){ try{ const dataUrl = await fileToDataUrl(file); localStorage.setItem('me_avatar', dataUrl); }catch(e){} }
+    applyProfilePreview(); alert('پروفایل ذخیره شد (localStorage)'); loadUsers();
+  });
+
+  const saveAppearanceBtn = document.getElementById('saveAppearance');
+  if(saveAppearanceBtn) saveAppearanceBtn.addEventListener('click', ()=>{ const themeSel = document.getElementById('themeSelect'); const theme = themeSel ? themeSel.value : null; if(theme) localStorage.setItem('theme', theme); applyTheme(theme); alert('ظاهر ذخیره شد'); });
+
+  const bgFileInput = document.getElementById('bgFile');
+  if(bgFileInput) bgFileInput.addEventListener('change', async (e)=>{ const f = e.target.files[0]; if(!f || !currentConv) return alert('ابتدا یک گفتگو باز کنید'); try{ const dataUrl = await fileToDataUrl(f); localStorage.setItem('bg_'+currentConv.otherId, dataUrl); applyBackgroundFor(currentConv.otherId); alert('پس‌زمینه ذخیره شد'); }catch(e){ alert('خطا در بارگذاری تصویر'); } });
+
+  const avatarFileInput = document.getElementById('avatarFile');
+  if(avatarFileInput) avatarFileInput.addEventListener('change', async (e)=>{ const f=e.target.files[0]; if(!f) return; try{ const url = await fileToDataUrl(f); const pa = document.getElementById('previewAvatar'); if(pa){ pa.style.backgroundImage = `url(${url})`; pa.textContent=''; } }catch(e){} });
+
+  // autoNight change listener (was missing)
+  const autoNightEl = document.getElementById('autoNight');
+  if(autoNightEl) autoNightEl.addEventListener('change', (e)=>{ const v = e.target.value; localStorage.setItem('auto_night', v); if(v === 'on'){ scheduleAutoNight(); } });
+}
+
+/* Profile preview */
+function applyProfilePreview(){ const name = localStorage.getItem('me_name') || 'نام شما'; const idVal = localStorage.getItem('me_id') || ''; const id = idVal ? '@'+idVal : '@your_id'; const avatar = localStorage.getItem('me_avatar'); const previewNameEl = document.getElementById('previewName'); const previewIdEl = document.getElementById('previewId'); const previewAvatar = document.getElementById('previewAvatar'); if(previewNameEl) previewNameEl.textContent = name; if(previewIdEl) previewIdEl.textContent = id; if(previewAvatar){ if(avatar){ previewAvatar.style.backgroundImage = `url(${avatar})`; previewAvatar.textContent=''; } else { previewAvatar.style.backgroundImage = ''; previewAvatar.style.background = stringToGradient(id || name); previewAvatar.textContent = (name||'نام').slice(0,2).toUpperCase(); } } }
+function loadProfileToForm(){ const nameEl = document.getElementById('profileName'); const idEl = document.getElementById('profileId'); const bioEl = document.getElementById('profileBio'); if(nameEl) nameEl.value = localStorage.getItem('me_name') || ''; if(idEl) idEl.value = localStorage.getItem('me_id') || ''; if(bioEl) bioEl.value = localStorage.getItem('me_bio') || ''; applyProfilePreview(); }
+
+/* Theme */
+function applyTheme(theme){ if(!theme) theme = localStorage.getItem('theme') || 'blue'; try{ document.documentElement.setAttribute('data-theme', theme); }catch(e){} const sel = document.getElementById('themeSelect'); if(sel) sel.value = theme; const autoEl = document.getElementById('autoNight'); if(autoEl) autoEl.value = localStorage.getItem('auto_night') || 'off'; }
+function scheduleAutoNight(){ const d = new Date(); const h = d.getHours(); if(h >= 20 || h < 6){ applyTheme('night'); localStorage.setItem('theme','night'); } }
+
+/* Search */
+function onSearchUsers(e){ const q = String(e.target.value || '').trim().toLowerCase(); document.querySelectorAll('#userList .user').forEach(el=>{ try{ const name = el.querySelector('.name').textContent.toLowerCase(); el.style.display = name.includes(q) ? 'flex' : 'none'; }catch(e){} }); }
+
+/* Composer placeholder toggling */
+function updateComposerEmptyState(){
+  const composer = document.getElementById('composerBox');
+  if(!composer) return;
+  const txt = (composer.textContent || composer.innerText || '').trim();
+  if(txt.length === 0) composer.classList.add('empty'); else composer.classList.remove('empty');
+}
+
+/* Init */
+document.addEventListener('DOMContentLoaded', ()=>{
+  applyTheme(localStorage.getItem('theme') || 'blue');
+  applyProfilePreview();
+  initSocket();
+  wireMenuHandlers();
+  wireSettingsHandlers();
+
+  const searchInput = document.getElementById('searchUsers'); if(searchInput) searchInput.addEventListener('input', onSearchUsers);
+  const logoutBtn = document.getElementById('logoutBtn'); if(logoutBtn) logoutBtn.addEventListener('click', ()=>{ localStorage.removeItem('token'); alert('logged out (local)'); });
+
+  const sendBtn = document.getElementById('sendBtn'); const composer = document.getElementById('composerBox');
+  if(sendBtn) sendBtn.addEventListener('click', ()=> sendMessage());
+  if(composer){
+    composer.addEventListener('keydown', (e)=>{ if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); sendMessage(); } });
+    composer.addEventListener('input', updateComposerEmptyState);
+    // initialize empty state
+    updateComposerEmptyState();
+  }
+
+  // load users (socket may also load them on connect)
+  loadUsers();
+});
+
+</script>
+
+<!-- PATCH: fixes for pending messages, auto-night, safe backgrounds and deleted-message display -->
+<script>
+(function(){
+  // Helper: safe URL sanitizer for background images
+  function safeUrl(u){
+    try{
+      if(!u || typeof u !== 'string') return null;
+      u = u.trim();
+      // allow data:, http:, https:, and relative URLs (starting with / or without protocol but no "javascript:")
+      if(u.startsWith('javascript:')) return null;
+      if(u.startsWith('data:') || u.startsWith('http:') || u.startsWith('https:') || u.startsWith('/')) return u;
+      // relative paths without protocol (e.g. "images/bg.png")
+      if(!/^[a-zA-Z0-9\-]+:/.test(u)) return u;
+      return null;
+    }catch(e){
+      return null;
+    }
+  }
+
+  // Override applyBackgroundFor if available to use safeUrl
+  try{
+    if(typeof applyBackgroundFor === 'function'){
+      const _origApplyBackgroundFor = applyBackgroundFor;
+      window.applyBackgroundFor = function(conversationId, bg){
+        try{
+          const safe = safeUrl(bg);
+          if(!safe){
+            // skip unsafe backgrounds
+            console.warn('applyBackgroundFor: unsafe background skipped', bg);
+            return _origApplyBackgroundFor.call(this, conversationId, '');
+          }
+          return _origApplyBackgroundFor.call(this, conversationId, safe);
+        }catch(e){
+          console.warn('applyBackgroundFor override error', e);
+          return _origApplyBackgroundFor.call(this, conversationId, bg);
+        }
+      };
+    }
+  }catch(e){ console.warn('patch: applyBackgroundFor patch failed', e); }
+
+  // Override applyProfilePreview if present (safe background-image)
+  try{
+    if(typeof applyProfilePreview === 'function'){
+      const _orig = applyProfilePreview;
+      window.applyProfilePreview = function(avatar){
+        try{
+          const safe = safeUrl(avatar);
+          return _orig.call(this, safe || '');
+        }catch(e){
+          console.warn('patch: applyProfilePreview error', e);
+          return _orig.call(this, avatar);
+        }
+      };
+    }
+  }catch(e){ console.warn('patch: applyProfilePreview patch failed', e); }
+
+  // Call scheduleAutoNight on load and set hourly sync if function exists
+  document.addEventListener('DOMContentLoaded', function(){
+    try{
+      if(typeof scheduleAutoNight === 'function'){
+        try{ scheduleAutoNight(); }catch(e){ console.warn('scheduleAutoNight initial call failed', e); }
+        // keep it in sync every 60 minutes
+        setInterval(function(){
+          try{ scheduleAutoNight(); }catch(e){ /* silent */ }
+        }, 60*60*1000);
+      }
+    }catch(e){}
+  });
+
+  // Helper: escape text to set textContent safely
+  function setMessageTextSafe(el, txt){
+    try{
+      if(!el) return;
+      // preserve newlines as <br> if element supports innerHTML for that - but we use textContent to be safe
+      el.textContent = txt || '';
+    }catch(e){}
+  }
+
+  // Add socket listeners for reconciliation and deleted messages
+  function installSocketPatches(){
+    try{
+      if(!window.socket || typeof window.socket.on !== 'function') return;
+      // reconcile message:new
+      window.socket.on('message:new', function(msg){
+        try{
+          if(!msg) return;
+          // 1) If server provides tmpId, replace pending DOM element with id 'm-'+tmpId
+          if(msg.tmpId){
+            var pendingEl = document.getElementById('m-'+msg.tmpId);
+            if(pendingEl){
+              pendingEl.id = 'm-'+msg._id;
+              var textEl = pendingEl.querySelector('.text, .msg .text, .message-text, .bubble');
+              if(textEl) setMessageTextSafe(textEl, msg.text || '');
+              // remove any pending marker class
+              pendingEl.classList.remove('pending', 'sending');
+              return;
+            }
+          }
+          // 2) Deduplicate by exact text match: if there are multiple message elements with same text,
+          // remove one that has 'data-pending' attribute or older timestamp if available.
+          try{
+            var allMsgEls = Array.from(document.querySelectorAll('[id^="m-"]'));
+            if(msg.text){
+              var matches = allMsgEls.filter(function(el){
+                var t = (el.textContent || '').trim();
+                return t === (msg.text || '').trim();
+              });
+              if(matches.length > 1){
+                // prefer keeping the one that already has real id (non-tmp) or newer
+                // remove elements with id starting with 'm-tmp-' first
+                for(var i=0;i<matches.length;i++){
+                  var el = matches[i];
+                  if(el.id && el.id.indexOf('m-tmp-') === 0){
+                    el.parentNode && el.parentNode.removeChild(el);
+                    // after removing one, stop
+                    break;
+                  }
+                }
+              }
+            }
+          }catch(e){}
+        }catch(e){ console.warn('socket patch message:new handler error', e); }
+      });
+
+      // deleted
+      window.socket.on('message:deleted', function(payload){
+        try{
+          if(!payload) return;
+          var messageId = payload.messageId || payload._id || payload.id;
+          if(!messageId) return;
+          var el = document.getElementById('m-'+messageId);
+          if(!el){
+            // maybe it's present as numeric id without prefix
+            el = document.getElementById(String(messageId));
+          }
+          if(el){
+            var textEl = el.querySelector('.text, .msg .text, .message-text, .bubble');
+            if(textEl){
+              setMessageTextSafe(textEl, 'پیام حذف شد');
+              var msgWrap = el.querySelector('.msg');
+              if(msgWrap) msgWrap.classList.add('deleted');
+              el.setAttribute('data-deleted', '1');
+            }
+          }
+        }catch(e){}
+      });
+
+    }catch(e){ console.warn('installSocketPatches failed', e); }
+  }
+
+  // Try to install now; if socket is not ready yet, poll a few times
+  (function tryInstall(attempt){
+    attempt = attempt || 0;
+    installSocketPatches();
+    if((!window.socket || typeof window.socket.on !== 'function') && attempt < 10){
+      setTimeout(function(){ tryInstall(attempt+1); }, 300);
+    }
+  })();
+
+  // Safe handler for clearing conversation: if menuClearBtn exists, wrap click listener to handle 204 responses safely
+  try{
+    document.addEventListener('DOMContentLoaded', function(){
+      var btn = document.getElementById('menuClearBtn') || document.querySelector('[data-action="clear-conversation"]');
+      if(btn){
+        // remove previous listeners by cloning button and replacing (best-effort)
+        var newBtn = btn.cloneNode(true);
+        btn.parentNode.replaceChild(newBtn, btn);
+        newBtn.addEventListener('click', async function(e){
+          try{
+            e.preventDefault();
+            if(!window.currentConv || !currentConv.convId){
+              alert('ابتدا یک گفتگو باز کنید');
+              return;
+            }
+            if(!confirm('آیا مطمئن هستید که می‌خواهید تاریخچه این گفتگو حذف شود؟')) return;
+            var res = await fetch('/api/conversations/'+currentConv.convId+'/clear', { method: 'DELETE' });
+            if(res.status === 204 || res.status === 200){
+              // remove messages from DOM for this conversation (best-effort)
+              var container = document.getElementById('messages');
+              if(container) container.innerHTML = '';
+              // also try to update any in-memory arrays if present
+              if(Array.isArray(window.messages)) window.messages = [];
+              alert('تاریخچه پاک شد');
+            } else {
+              var txt = '';
+              try{ txt = await res.text(); }catch(e){ txt = 'خطا در سرور'; }
+              alert('خطا: ' + txt);
+            }
+          }catch(err){
+            console.warn('clear conversation error', err);
+            alert('خطا در پاک‌سازی گفتگو');
+          }
+        });
+      }
+    });
+  }catch(e){ console.warn('menuClearBtn patch failed', e); }
+
+  // Accessibility: ensure menus updated aria-hidden when toggled (best-effort)
+  function setAriaHidden(el, hidden){
+    try{
+      if(!el) return;
+      el.setAttribute('aria-hidden', hidden ? 'true' : 'false');
+    }catch(e){}
+  }
+
+  // observe DOM for menu toggles and ensure aria-hidden updated
+  try{
+    var mo = new MutationObserver(function(muts){
+      muts.forEach(function(m){
+        if(m.type === 'attributes' && m.attributeName === 'style'){
+          var el = m.target;
+          var visible = window.getComputedStyle(el).display !== 'none' && el.offsetParent !== null;
+          setAriaHidden(el, !visible);
+        }
+      });
+    });
+    document.querySelectorAll('.convMenu, .msgCtx, .menu, [role="menu"]').forEach(function(el){
+      try{ mo.observe(el, { attributes: true, attributeFilter: ['style', 'class'] }); }catch(e){}
+    });
+  }catch(e){}
+
+  // small utility to debounce input events for search inputs (best-effort)
+  try{
+    document.addEventListener('DOMContentLoaded', function(){
+      var inputs = document.querySelectorAll('input[type="search"], input[data-search], #searchInput, .search-input');
+      inputs.forEach(function(inp){
+        var timer = null;
+        var orig = inp.oninput;
+        inp.addEventListener('input', function(e){
+          clearTimeout(timer);
+          var that = this;
+          timer = setTimeout(function(){
+            // call original handler if exists
+            try{ if(typeof orig === 'function') orig.call(that, e); }catch(er){}
+            // also dispatch a custom event for existing listeners
+            that.dispatchEvent(new Event('debounced-input'));
+          }, 300);
+        });
+      });
+    });
+  }catch(e){}
+
+  console.log('Patch script applied: pending-reconciliation, auto-night init, safe backgrounds, deleted-message handling.');
+})();
+</script>
+
+<!-- MULTI-PROFILE FEATURE: UI + logic (v3) -->
+<style>
+/* Simple styles for profiles UI (kept local-scoped via IDs) */
+#profilesSection { padding: 12px; border-top: 1px solid rgba(0,0,0,0.06); margin-top: 12px; }
+#profilesSection h3 { margin: 6px 0 10px; font-size: 1rem; }
+#profilesContainer { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+.profile-thumb { width:56px; height:56px; border-radius:50%; overflow:hidden; display:inline-flex; align-items:center; justify-content:center; background:#eee; border:2px solid transparent; position:relative; }
+.profile-thumb img{ width:100%; height:100%; object-fit:cover; display:block; }
+.profile-thumb.active { border-color: #2b8aef; box-shadow: 0 2px 6px rgba(43,138,239,0.15); }
+.profile-actions { position:absolute; right:-6px; top:-6px; display:flex; gap:4px; }
+.profile-actions button { background: #fff; border:1px solid #ddd; padding:2px 6px; border-radius:6px; cursor:pointer; font-size:12px; }
+#addProfileBtn { margin-top:10px; padding:6px 10px; cursor:pointer; }
+.profile-meta { font-size:12px; color:#666; margin-top:8px; }
+#activeProfilePreview { width:96px; height:96px; border-radius:50%; overflow:hidden; display:inline-block; vertical-align:middle; margin-left:12px; border:1px solid #ddd; }
+</style>
+
+<section id="profilesSection" aria-label="پروفایل‌های من">
+  <h3>پروفایل‌های من</h3>
+  <div id="profilesUIWrap">
+    <div style="display:flex; align-items:center; gap:12px;">
+      <div id="profilesContainer" aria-live="polite"></div>
+      <div style="flex:1;">
+        <div style="display:flex; align-items:center;">
+          <div id="activeProfilePreview" title="پروفایل فعال"></div>
+          <div class="profile-meta">
+            <div>پروفایل فعال</div>
+            <div id="activeProfileId" style="font-weight:600;"></div>
+          </div>
+        </div>
+        <div style="margin-top:8px;">
+          <input type="file" id="addProfileInput" accept="image/*" style="display:none" />
+          <button id="addProfileBtn" type="button">➕ افزودن پروفایل جدید</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+(function(){
+  // Multi-profile implementation: store under key 'chat_profiles'
+  var STORAGE_KEY = 'chat_profiles';
+  var ACTIVE_KEY = 'chat_active_profile';
+  // utility: load profiles array
+  function loadProfilesFromStorage(){
+    try{
+      var raw = localStorage.getItem(STORAGE_KEY);
+      if(!raw) return [];
+      var arr = JSON.parse(raw);
+      if(!Array.isArray(arr)) return [];
+      return arr;
+    }catch(e){
+      console.warn('loadProfilesFromStorage parse failed', e);
+      return [];
+    }
+  }
+  function saveProfilesToStorage(arr){
+    try{
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(arr || []));
+    }catch(e){
+      console.warn('saveProfilesToStorage failed', e);
+    }
+  }
+  function getActiveProfileId(){
+    try{
+      return localStorage.getItem(ACTIVE_KEY) || null;
+    }catch(e){ return null; }
+  }
+  function setActiveProfileId(id){
+    try{
+      if(id) localStorage.setItem(ACTIVE_KEY, String(id));
+      else localStorage.removeItem(ACTIVE_KEY);
+    }catch(e){}
+  }
+  function createId(){
+    return 'p-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2,8);
+  }
+
+  // DOM references (create section if not present in settings)
+  var profilesSection = document.getElementById('profilesSection');
+  if(!profilesSection){
+    // find a settings container
+    var settingsEl = document.getElementById('settings') || document.querySelector('.settings') || document.querySelector('#settingsPanel') || null;
+    if(settingsEl){
+      // append our section to settings
+      profilesSection = document.createElement('section');
+      profilesSection.id = 'profilesSection';
+      profilesSection.setAttribute('aria-label', 'پروفایل‌های من');
+      settingsEl.appendChild(profilesSection);
+      // we'll later populate content
+    } else {
+      // append to end of body as fallback
+      var container = document.createElement('div');
+      container.id = 'profilesSection';
+      container.setAttribute('aria-label', 'پروفایل‌های من');
+      container.style.background = 'white';
+      container.style.padding = '8px';
+      container.style.margin = '12px';
+      document.body.appendChild(container);
+      profilesSection = container;
+    }
+    // inject innerHTML (same markup as above) for fallback insertion point
+    if(profilesSection.innerHTML.trim() === ''){
+      profilesSection.innerHTML = document.querySelector('section#profilesSection') ? document.querySelector('section#profilesSection').innerHTML : `
+        <h3>پروفایل‌های من</h3>
+        <div id="profilesUIWrap">
+          <div style="display:flex; align-items:center; gap:12px;">
+            <div id="profilesContainer" aria-live="polite"></div>
+            <div style="flex:1;">
+              <div style="display:flex; align-items:center;">
+                <div id="activeProfilePreview" title="پروفایل فعال"></div>
+                <div class="profile-meta">
+                  <div>پروفایل فعال</div>
+                  <div id="activeProfileId" style="font-weight:600;"></div>
+                </div>
+              </div>
+              <div style="margin-top:8px;">
+                <input type="file" id="addProfileInput" accept="image/*" style="display:none" />
+                <button id="addProfileBtn" type="button">➕ افزودن پروفایل جدید</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+  }
+
+  // helper to render profiles
+  function renderProfiles(){
+    var arr = loadProfilesFromStorage();
+    var container = document.getElementById('profilesContainer');
+    var activeId = getActiveProfileId();
+    if(!container) return;
+    container.innerHTML = '';
+    arr.forEach(function(p){
+      var wrap = document.createElement('div');
+      wrap.className = 'profile-thumb';
+      wrap.setAttribute('data-id', p.id);
+      wrap.title = 'انتخاب پروفایل';
+      if(String(p.id) === String(activeId)){
+        wrap.classList.add('active');
+      }
+      var img = document.createElement('img');
+      img.src = p.url || '';
+      img.alt = 'پروفایل';
+      wrap.appendChild(img);
+
+      var actions = document.createElement('div');
+      actions.className = 'profile-actions';
+      // select button
+      var sel = document.createElement('button');
+      sel.type = 'button';
+      sel.title = 'انتخاب';
+      sel.textContent = 'انتخاب';
+      sel.addEventListener('click', function(e){
+        setActiveProfile(p.id);
+      });
+      actions.appendChild(sel);
+      // delete button
+      var del = document.createElement('button');
+      del.type = 'button';
+      del.title = 'حذف';
+      del.textContent = 'حذف';
+      del.addEventListener('click', function(e){
+        e.stopPropagation();
+        if(!confirm('آیا از حذف این پروفایل مطمئن هستید؟')) return;
+        deleteProfile(p.id);
+      });
+      actions.appendChild(del);
+
+      wrap.appendChild(actions);
+      // clicking thumb also selects
+      wrap.addEventListener('click', function(){ setActiveProfile(p.id); });
+      container.appendChild(wrap);
+    });
+    // update active preview
+    updateActivePreview();
+  }
+
+  function updateActivePreview(){
+    var activeId = getActiveProfileId();
+    var arr = loadProfilesFromStorage();
+    var p = arr.find(function(x){ return String(x.id) === String(activeId); });
+    var preview = document.getElementById('activeProfilePreview');
+    var idEl = document.getElementById('activeProfileId');
+    if(preview){
+      if(p && p.url){
+        preview.innerHTML = '<img src="'+(p.url)+'" alt="active" style="width:100%;height:100%;object-fit:cover" />';
+      } else {
+        preview.innerHTML = '';
+      }
+    }
+    if(idEl){
+      idEl.textContent = p ? p.id : '(هیچ‌کدام)';
+    }
+    // notify other UI parts: call a hook if exists
+    try{
+      if(typeof onProfilesUpdated === 'function') onProfilesUpdated(arr, p);
+    }catch(e){}
+    // also call applyProfilePreview if defined to update any profile preview areas
+    try{
+      if(window.applyProfilePreview && typeof window.applyProfilePreview === 'function'){
+        var url = p && p.url ? p.url : '';
+        try{ window.applyProfilePreview(url); }catch(e){}
+      }
+    }catch(e){}
+    // and if there's a global currentUserAvatar element, update it
+    var globalAvatar = document.querySelector('.header .avatar, .user-avatar, #myAvatar');
+    if(globalAvatar){
+      try{
+        var img = globalAvatar.querySelector('img');
+        if(img){
+          img.src = p && p.url ? p.url : '';
+        } else {
+          // set as background-image safely
+          if(p && p.url){
+            globalAvatar.style.backgroundImage = 'url("'+p.url.replace(/"/g,'')+'")';
+          } else {
+            globalAvatar.style.backgroundImage = '';
+          }
+        }
+      }catch(e){}
+    }
+  }
+
+  function setActiveProfile(id){
+    setActiveProfileId(id);
+    renderProfiles();
+  }
+
+  function deleteProfile(id){
+    var arr = loadProfilesFromStorage();
+    var idx = arr.findIndex(function(x){ return String(x.id) === String(id); });
+    if(idx === -1) return;
+    arr.splice(idx,1);
+    saveProfilesToStorage(arr);
+    // if deleted active, unset active
+    var active = getActiveProfileId();
+    if(String(active) === String(id)){
+      setActiveProfileId(arr.length ? arr[0].id : null);
+    }
+    renderProfiles();
+  }
+
+  // add new profile from file input
+  function handleNewProfileFile(file){
+    if(!file) return;
+    var reader = new FileReader();
+    reader.onload = function(e){
+      try{
+        var url = e.target.result;
+        // store minimal: id + url
+        var arr = loadProfilesFromStorage();
+        var id = createId();
+        arr.push({ id: id, url: url });
+        saveProfilesToStorage(arr);
+        // set as active automatically
+        setActiveProfileId(id);
+        renderProfiles();
+        alert('پروفایل جدید افزوده شد');
+      }catch(err){
+        console.warn('saving profile failed', err);
+        alert('خطا در افزودن پروفایل');
+      }
+    };
+    reader.readAsDataURL(file);
+  }
+
+  // wire add button and input
+  document.addEventListener('DOMContentLoaded', function(){
+    var addBtn = document.getElementById('addProfileBtn');
+    var addInput = document.getElementById('addProfileInput');
+    // If not present, create them
+    if(!addInput){
+      addInput = document.createElement('input');
+      addInput.type = 'file';
+      addInput.accept = 'image/*';
+      addInput.id = 'addProfileInput';
+      addInput.style.display = 'none';
+      document.body.appendChild(addInput);
+    }
+    if(!addBtn){
+      addBtn = document.createElement('button');
+      addBtn.id = 'addProfileBtn';
+      addBtn.textContent = '➕ افزودن پروفایل جدید';
+      profilesSection.appendChild(addBtn);
+    }
+    addBtn.addEventListener('click', function(){ addInput.click(); });
+    addInput.addEventListener('change', function(e){
+      var f = (e.target.files && e.target.files[0]) ? e.target.files[0] : null;
+      if(f) handleNewProfileFile(f);
+      // reset input so same file can be added again if needed
+      try{ e.target.value = ''; }catch(e){}
+    });
+    // initial render
+    renderProfiles();
+  });
+
+  // expose helpers globally for integration tests / manual triggers
+  window.chatProfiles = {
+    load: loadProfilesFromStorage,
+    save: saveProfilesToStorage,
+    setActive: setActiveProfileId,
+    getActiveId: getActiveProfileId,
+    createId: createId
+  };
+
+  // If there are no profiles yet, seed with a default placeholder avatar (optional)
+  document.addEventListener('DOMContentLoaded', function(){
+    try{
+      var arr = loadProfilesFromStorage();
+      if(arr.length === 0){
+        // create a tiny SVG placeholder as data URL to avoid network deps
+        var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120"><rect width="100%" height="100%" fill="%23e9eef8"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" font-size="36" fill="%23777">شما</text></svg>';
+        var url = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+        var id = createId();
+        arr.push({ id: id, url: url });
+        saveProfilesToStorage(arr);
+        setActiveProfileId(id);
+        renderProfiles();
+      } else {
+        // ensure active is set
+        var active = getActiveProfileId();
+        if(!active && arr.length) setActiveProfileId(arr[0].id);
+        renderProfiles();
+      }
+    }catch(e){ console.warn('profiles seed failed', e); }
+  });
+
+})();
+</script>
+<!-- END MULTI-PROFILE FEATURE -->
+
+<!-- START CHAT PAGE PATCH (v4) -->
+<style>
+#startChatPage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  text-align: center;
+  color: var(--text-color, #333);
+  padding: 40px;
+}
+#startChatPage h2 {
+  font-size: 1.5rem;
+  margin-bottom: 12px;
+}
+#startChatPage p {
+  font-size: 1rem;
+  margin-bottom: 16px;
+}
+#chatTargetInput {
+  padding: 8px 12px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  width: 240px;
+  margin-bottom: 12px;
+}
+#startChatBtn {
+  padding: 8px 16px;
+  border-radius: 6px;
+  border: none;
+  background-color: #2b8aef;
+  color: white;
+  cursor: pointer;
+  font-size: 1rem;
+}
+#startChatBtn:hover {
+  background-color: #1c6edc;
+}
+</style>
+
+<div id="startChatPage" class="start-page">
+  <h2>شروع گفتگو</h2>
+  <p>برای شروع چت، شناسه (ID) مخاطب را وارد کنید:</p>
+  <input type="text" id="chatTargetInput" placeholder="مثلاً user123" />
+  <button id="startChatBtn">شروع چت</button>
+</div>
+
+<script>
+(function(){
+  // Hide user list if exists
+  document.addEventListener('DOMContentLoaded', function(){
+    var userList = document.getElementById('userList') || document.querySelector('.user-list') || document.querySelector('#users');
+    if(userList) userList.style.display = 'none';
+    var convList = document.getElementById('convList') || document.querySelector('.conv-list');
+    if(convList) convList.style.display = 'none';
+    // Hide message area initially
+    var msgContainer = document.getElementById('messages') || document.querySelector('.messages');
+    if(msgContainer) msgContainer.style.display = 'none';
+    var composer = document.getElementById('composer') || document.querySelector('.composer');
+    if(composer) composer.style.display = 'none';
+  });
+
+  function startChatWithId(targetId){
+    try{
+      if(!targetId || !targetId.trim()){
+        alert('لطفاً شناسه مخاطب را وارد کنید');
+        return;
+      }
+      var id = targetId.trim();
+      // emit join/private event
+      if(window.socket && typeof window.socket.emit === 'function'){
+        try{
+          socket.emit('private:join', { targetId: id });
+        }catch(e){ console.warn('emit failed', e); }
+      }
+      // set currentConv locally
+      window.currentConv = { convId: 'tmp-'+id, partnerId: id };
+      // hide start page and show chat UI
+      var startPg = document.getElementById('startChatPage');
+      if(startPg) startPg.style.display = 'none';
+      var msgContainer = document.getElementById('messages') || document.querySelector('.messages');
+      if(msgContainer) msgContainer.style.display = '';
+      var composer = document.getElementById('composer') || document.querySelector('.composer');
+      if(composer) composer.style.display = '';
+      // maybe show partner name in header
+      var title = document.getElementById('chatTitle') || document.querySelector('.chat-title');
+      if(title){ title.textContent = 'گفتگو با '+id; }
+      alert('گفتگو با '+id+' آغاز شد.');
+    }catch(err){ console.warn('startChatWithId failed', err); }
+  }
+  window.startChatWithId = startChatWithId;
+
+  document.addEventListener('DOMContentLoaded', function(){
+    var btn = document.getElementById('startChatBtn');
+    var input = document.getElementById('chatTargetInput');
+    if(btn && input){
+      btn.addEventListener('click', function(){ startChatWithId(input.value); });
+      input.addEventListener('keydown', function(e){ if(e.key === 'Enter') startChatWithId(input.value); });
+    }
+  });
+})();
+</script>
+<!-- END START CHAT PAGE PATCH -->
+</body>
+</html>
