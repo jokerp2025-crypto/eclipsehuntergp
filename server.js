@@ -390,6 +390,28 @@ app.post('/logout', authMiddleware, async (req, res) => {
   } catch (e) { console.error('Logout error', e); return res.status(500).json({ ok: false }); }
 });
 
+
+
+// --- NEW: Verify site access password ---
+/*
+  Route: POST /auth/access
+  Body: { sitePassword: string }
+  Behavior: compares sitePassword to MAIN_PASSWORD (env). Returns { ok: true } when match,
+            otherwise returns proper HTTP error and { ok:false, error: '...' }.
+  Security: uses MAIN_PASSWORD from environment (never stored in client).
+*/
+app.post('/auth/access', async (req, res) => {
+  try {
+    const { sitePassword } = req.body;
+    if (!sitePassword) return res.status(400).json({ ok: false, error: 'missing_password' });
+    if (sitePassword !== MAIN_PASSWORD) return res.status(403).json({ ok: false, error: 'wrong_site_password' });
+    return res.json({ ok: true });
+  } catch (e) {
+    console.error('Access verify error', e);
+    return res.status(500).json({ ok: false, error: 'server_error' });
+  }
+});
+
 function normalizeMessage(m) {
   if (!m) return m;
   const obj = m.toObject ? m.toObject() : JSON.parse(JSON.stringify(m));
