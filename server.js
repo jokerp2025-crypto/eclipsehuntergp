@@ -500,13 +500,3 @@ io.on('connection', (socket) => {
 server.listen(PORT, () => {
   console.log(`Server listening on port ${PORT}`);
 });
-
-// graceful shutdown
-function shutdown() {
-  console.log('Shutting down server...');
-  server.close(() => {
-    mongoose.disconnect().then(() => process.exit(0));
-  });
-}
-process.on('SIGINT', shutdown);
-process.on('SIGTERM', shutdown);
