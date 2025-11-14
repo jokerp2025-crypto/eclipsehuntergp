@@ -1,22 +1,5 @@
-/**
- * server_upgraded_final.js
- *
- * Upgraded Node.js + Express + Socket.IO server for Eclipse Chat
- * Adds the five requested features to the existing server:
- *  1) Media upload endpoint (POST /upload/media) using multer -> saves to ./uploads and returns URL
- *  2) Presence (user online/offline + lastSeen) with heartbeat and socket events
- *  3) User search endpoint (GET /users/search?q=...) by username/displayName
- *  4) User profile endpoint (GET /users/:id)
- *  5) Typing indicator via socket events
- *
- * Requirements (install):
- *   npm install express mongoose socket.io cors helmet morgan multer bcrypt jsonwebtoken dotenv
- *
- * Environment variables expected (.env):
- *   MONGO_URI, JWT_SECRET, PORT (optional)
- *
- * Note: This file is self-contained and intentionally commented for clarity.
- */
+// server_upgraded_final.js
+'use strict';
 
 const fs = require('fs');
 const path = require('path');
@@ -34,29 +17,34 @@ require('dotenv').config();
 const app = express();
 const server = http.createServer(app);
 const { Server } = require('socket.io');
-const io = new Server(server, {
-  cors: { origin: '*' }
-});
+const io = new Server(server, { cors: { origin: '*' } });
 
 const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/eclipse_chat';
 const JWT_SECRET = process.env.JWT_SECRET || 'change_this_secret';
-const PORT = process.env.PORT || 3000;
+const PORT = parseInt(process.env.PORT || '3000', 10);
 const UPLOAD_DIR = path.join(__dirname, 'uploads');
 
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR);
-// ---------------------- STATIC PUBLIC ----------------------
-app.use(express.static(path.join(__dirname, "public")));
 
-app.get("/", (req, res) => {
-  res.sendFile(path.join(__dirname, "public", "index.html"));
-});
-/* ---------------------- Mongoose models ---------------------- */
+// middlewares
+app.use(cors());
+app.use(helmet());
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true }));
+app.use(morgan('dev'));
+
+// static
+app.use('/uploads', express.static(UPLOAD_DIR));
+app.use(express.static(path.join(__dirname, 'public')));
+app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
+
+// mongoose
 mongoose.connect(MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true })
   .then(()=> console.log('MongoDB connected'))
   .catch(err => console.error('Mongo connect error', err));
 
-const Schema = mongoose.Schema;
-
+// schemas/models
+const { Schema } = mongoose;
 const UserSchema = new Schema({
   username: { type: String, index: true },
   displayName: String,
@@ -98,20 +86,18 @@ const User = mongoose.model('User', UserSchema);
 const Conversation = mongoose.model('Conversation', ConversationSchema);
 const Message = mongoose.model('Message', MessageSchema);
 
-/* ---------------------- Middleware ---------------------- */
-app.use(cors());
-app.use(helmet());
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true }));
-app.use(morgan('dev'));
+// multer uploads
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, UPLOAD_DIR),
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname);
+    cb(null, `${Date.now()}_${Math.random().toString(36).slice(2,8)}${ext}`);
+  }
+});
+const upload = multer({ storage, limits: { fileSize: 50 * 1024 * 1024 } });
 
-/* Static uploads access */
-app.use('/uploads', express.static(UPLOAD_DIR));
-
-/* ---------------------- Auth helpers ---------------------- */
-function signToken(user) {
-  return jwt.sign({ id: user._id }, JWT_SECRET, { expiresIn: '30d' });
-}
+// auth helpers
+function signToken(user) { return jwt.sign({ id: user._id }, JWT_SECRET, { expiresIn: '30d' }); }
 
 async function authMiddleware(req, res, next) {
   const auth = req.headers.authorization || '';
@@ -129,17 +115,7 @@ async function authMiddleware(req, res, next) {
   }
 }
 
-/* ---------------------- Multer for uploads ---------------------- */
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, UPLOAD_DIR),
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname);
-    cb(null, `${Date.now()}_${Math.random().toString(36).slice(2,8)}${ext}`);
-  }
-});
-const upload = multer({ storage, limits: { fileSize: 50 * 1024 * 1024 } });
-
-/* ---------------------- Routes ---------------------- */
+// routes (auth, users, convs, messages, upload)
 app.get('/health', (req, res) => res.json({ ok: true }));
 
 app.post('/auth/register', async (req, res) => {
@@ -249,16 +225,11 @@ app.delete('/api/messages/:id', authMiddleware, async (req, res) => {
 app.post('/upload/media', authMiddleware, upload.single('file'), async (req, res) => {
   if (!req.file) return res.status(400).json({ ok: false, error: 'no file' });
   const url = `/uploads/${path.basename(req.file.path)}`;
-  const attachment = {
-    url,
-    name: req.file.originalname,
-    size: req.file.size,
-    mime: req.file.mimetype
-  };
+  const attachment = { url, name: req.file.originalname, size: req.file.size, mime: req.file.mimetype };
   res.json({ ok: true, attachment });
 });
 
-/* ---------------------- Presence helpers ---------------------- */
+// presence maps
 const socketUser = new Map();
 const userSockets = new Map();
 
@@ -284,12 +255,10 @@ async function setUserOffline(userId, socketId) {
   }
 }
 
-/* ---------------------- Socket events ---------------------- */
+// sockets
 io.on('connection', (socket) => {
-  const token = socket.handshake.auth && socket.handshake.auth.token || (socket.handshake.query && socket.handshake.query.token);
-  if (!token) {
-    console.warn('socket connected without token');
-  } else {
+  const token = (socket.handshake.auth && socket.handshake.auth.token) || (socket.handshake.query && socket.handshake.query.token);
+  if (token) {
     try {
       const payload = jwt.verify(token, JWT_SECRET);
       const uid = payload.id;
@@ -298,18 +267,15 @@ io.on('connection', (socket) => {
     } catch (err) {
       console.warn('socket token invalid', err.message);
     }
+  } else {
+    console.warn('socket connected without token');
   }
 
-  socket.on('private:join', ({ convId }) => {
-    if (!convId) return;
-    socket.join(String(convId));
-  });
-
-  socket.on('private:leave', ({ convId }) => {
-    socket.leave(String(convId));
-  });
+  socket.on('private:join', ({ convId }) => { if (convId) socket.join(String(convId)); });
+  socket.on('private:leave', ({ convId }) => { if (convId) socket.leave(String(convId)); });
 
   socket.on('typing', ({ convId, typing }) => {
+    if (!convId) return;
     socket.to(String(convId)).emit('typing', { convId, userId: socket.data.userId, typing });
   });
 
@@ -317,12 +283,7 @@ io.on('connection', (socket) => {
     try {
       const { convId, tempId, text, attachments } = payload;
       const senderId = socket.data.userId;
-      const msg = new Message({
-        conversationId: convId,
-        senderId,
-        text: text || '',
-        attachments: attachments || []
-      });
+      const msg = new Message({ conversationId: convId, senderId, text: text || '', attachments: attachments || [] });
       await msg.save();
       await Conversation.findByIdAndUpdate(convId, { lastMessageText: text, lastMessageAt: new Date() });
       io.to(String(convId)).emit('private:message', { conversationId: convId, message: msg });
@@ -338,15 +299,10 @@ io.on('connection', (socket) => {
       const msg = await Message.findById(messageId);
       if (!msg) return cb && cb({ ok: false, error: 'not found' });
       if (String(msg.senderId) !== String(socket.data.userId)) return cb && cb({ ok: false, error: 'not allowed' });
-      msg.text = text;
-      msg.editedAt = new Date();
-      await msg.save();
+      msg.text = text; msg.editedAt = new Date(); await msg.save();
       io.to(String(msg.conversationId)).emit('message:updated', { conversationId: msg.conversationId, message: msg });
       cb && cb({ ok: true, message: msg });
-    } catch (err) {
-      console.error('edit error', err);
-      cb && cb({ ok: false, error: err.message });
-    }
+    } catch (err) { cb && cb({ ok: false, error: err.message }); console.error(err); }
   });
 
   socket.on('message:delete', async ({ messageId, forAll }, cb) => {
@@ -355,19 +311,14 @@ io.on('connection', (socket) => {
       if (!msg) return cb && cb({ ok: false, error: 'not found' });
       if (forAll) {
         if (String(msg.senderId) !== String(socket.data.userId)) return cb && cb({ ok: false, error: 'not allowed' });
-        msg.deleted = true; msg.deletedForAll = true; msg.text = '';
-        await msg.save();
+        msg.deleted = true; msg.deletedForAll = true; msg.text = ''; await msg.save();
         io.to(String(msg.conversationId)).emit('message:deleted', { conversationId: msg.conversationId, messageId: msg._id, deletedForAll: true });
       } else {
-        msg.deleted = true;
-        await msg.save();
+        msg.deleted = true; await msg.save();
         io.to(String(msg.conversationId)).emit('message:deleted', { conversationId: msg.conversationId, messageId: msg._id, deletedForAll: false });
       }
       cb && cb({ ok: true });
-    } catch (err) {
-      console.error('delete error', err);
-      cb && cb({ ok: false, error: err.message });
-    }
+    } catch (err) { cb && cb({ ok: false, error: err.message }); console.error(err); }
   });
 
   socket.on('message:seen', async ({ convId, messageIds }, cb) => {
@@ -376,28 +327,21 @@ io.on('connection', (socket) => {
       await Message.updateMany({ _id: { $in: messageIds } }, { $addToSet: { seenBy: socket.data.userId } });
       io.to(String(convId)).emit('message:seen', { conversationId: convId, messageIds, userId: socket.data.userId });
       cb && cb({ ok: true });
-    } catch (err) {
-      console.error('seen error', err);
-      cb && cb({ ok: false, error: err.message });
-    }
+    } catch (err) { cb && cb({ ok: false, error: err.message }); console.error(err); }
   });
 
   socket.on('presence:ping', async () => {
-    const uid = socket.data.userId;
-    if (!uid) return;
+    const uid = socket.data.userId; if (!uid) return;
     await User.findByIdAndUpdate(uid, { lastSeenAt: new Date() });
   });
 
-  socket.on('disconnect', (reason) => {
-    const sid = socket.id;
-    const uid = socket.data.userId;
+  socket.on('disconnect', () => {
+    const sid = socket.id; const uid = socket.data.userId;
     if (uid) setUserOffline(uid, sid).catch(console.error);
   });
 });
 
-/* ---------------------- Start server ---------------------- */
+// start
 server.listen(PORT, () => {
   console.log(`Server listening on port ${PORT}`);
 });
-
-/* ---------------------- End of file ---------------------- */
