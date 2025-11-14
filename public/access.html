@@ -62,11 +62,11 @@
       }
 
       try {
-        const res = await fetch('/auth/access', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ sitePassword })
-        });
+        const res = await fetch('https://eclipsehuntergp.onrender.com/auth/access', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ sitePassword })
+});
 
         let data = null;
         try {
