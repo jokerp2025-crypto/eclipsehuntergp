@@ -44,7 +44,12 @@ const PORT = process.env.PORT || 3000;
 const UPLOAD_DIR = path.join(__dirname, 'uploads');
 
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR);
+// ---------------------- STATIC PUBLIC ----------------------
+app.use(express.static(path.join(__dirname, "public")));
 
+app.get("/", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "index.html"));
+});
 /* ---------------------- Mongoose models ---------------------- */
 mongoose.connect(MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true })
   .then(()=> console.log('MongoDB connected'))
