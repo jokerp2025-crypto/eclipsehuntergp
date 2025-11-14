@@ -1403,4 +1403,4 @@ function appendMessage(msg) {
   if(clearBtn) clearBtn.addEventListener('click', ()=> { if(confirm('Clear local data?')) clearLocalData(); });
 
   const logoutBtn = document.getElementById('logoutBtn');
-  if(logoutBtn) logoutBtn.addEventListener('click
+  if (logoutBtn) logoutBtn.addEventListener('click', doLogout);
