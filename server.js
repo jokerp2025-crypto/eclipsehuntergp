@@ -46,6 +46,7 @@ const PORT = parseInt(process.env.PORT || '3000', 10);
 const MONGO_URI = process.env.MONGO_URI || process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/eclipse_chat';
 const JWT_SECRET = process.env.JWT_SECRET || 'change_this_jwt_secret';
 const SITE_PASSWORD = process.env.SITE_PASSWORD || ''; // optional site gate
+console.log(">>> SITE_PASSWORD =", SITE_PASSWORD);
 const UPLOADS_REL = path.join('public', 'uploads');
 const UPLOADS_DIR = path.join(__dirname, UPLOADS_REL);
 
