@@ -1,4 +1,4 @@
-
+document.getElementById("submitBtn").addEventListener("click", submitAccess);
     async function submitAccess() {
       const msg = document.getElementById("msg");
       msg.textContent = "";
