@@ -100,7 +100,10 @@
             body: JSON.stringify({ username, password })
           });
 
-          const data = await res.json().catch(()=>({}));
+          // parse JSON safely
+          let data = null;
+          try { data = await res.json(); } catch (err) { data = null; }
+
           if (res.ok && data && data.ok && data.token) {
             showMessage('ورود موفق — در حال انتقال...', true);
 
@@ -112,12 +115,22 @@
             setTimeout(() => {
               location.href = '/chat.html';
             }, 650);
-          } else if (data && data.error) {
+            return;
+          }
+
+          // handle known server-side errors gracefully
+          if (data && data.error) {
             let txt = data.error;
-            if (data.error === 'user_not_found') txt = 'کاربری با این نام یافت نشد';
-            if (data.error === 'wrong_password') txt = 'نام‌کاربری یا رمز عبور اشتباه است';
+            if (data.error === 'user_not_found' || data.error === 'user_not_found') txt = 'کاربری با این نام یافت نشد';
+            if (data.error === 'wrong_password' || data.error === 'invalid_credentials') txt = 'نام‌کاربری یا رمز عبور اشتباه است';
             if (data.error === 'missing_fields') txt = 'فیلدها تکمیل نشده‌اند';
             showMessage(txt, false);
+            return;
+          }
+
+          // fallback: non-JSON or unexpected server response
+          if (!res.ok) {
+            showMessage('خطا در ورود — سرور پاسخ ناموفق داد', false);
           } else {
             showMessage('خطا در ورود', false);
           }

@@ -1,82 +1,104 @@
 <!DOCTYPE html>
-<html lang="fa" dir="rtl">
+<html lang="fa">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>دسترسی — Eclipse Hunter</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ورود به سایت</title>
+  <link rel="stylesheet" href="style.css" />
   <style>
-    :root {
-      --tg-blue:#0088cc;
-      --bg:#f6f9fc;
-      --card:#ffffff;
-      --muted:#6b7280;
-      --danger:#b91c1c;
-      --success:#059669;
+    body {
+      font-family: sans-serif;
+      direction: rtl;
+      text-align: center;
+      padding: 50px;
+      background: #0f0f0f;
+      color: #fff;
     }
-    * { box-sizing:border-box; font-family:system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial }
-    html,body { height:100%; margin:0; background:linear-gradient(180deg,#eaf6fb 0%,var(--bg) 100%); color:#111 }
-    .wrap { min-height:100vh; display:flex; align-items:center; justify-content:center; padding:20px }
-    .card { width:100%; max-width:460px; background:var(--card); border-radius:16px; box-shadow:0 8px 30px rgba(2,6,23,0.06); padding:25px }
-    h1 { margin:0 0 8px; font-size:22px; color:var(--tg-blue); text-align:center }
-    p.lead { margin:0 0 16px; text-align:center; color:var(--muted); font-size:14px }
-    form { display:flex; flex-direction:column; gap:10px }
-    .input { width:100%; padding:12px 14px; border-radius:12px; border:1px solid #e6eef6; background:transparent; font-size:15px; direction:ltr }
-    .btn { display:inline-flex; align-items:center; justify-content:center; padding:12px; border-radius:12px; border:0; background:var(--tg-blue); color:#fff; font-weight:600; cursor:pointer; font-size:15px }
-    .msg { margin-top:10px; text-align:center; font-size:13px; color:var(--danger); min-height:20px }
+    input {
+      padding: 10px;
+      width: 200px;
+      border: none;
+      border-radius: 6px;
+      margin-top: 10px;
+      text-align: center;
+    }
+    button {
+      padding: 10px 25px;
+      margin-top: 10px;
+      background: #3a86ff;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    #msg {
+      margin-top: 15px;
+      font-size: 13px;
+      color: #ff7070;
+    }
   </style>
-  <script>
-    document.addEventListener('DOMContentLoaded', function(){
-      const form = document.getElementById('accessForm');
-      const msg = document.getElementById('message');
+</head>
 
-      function showMessage(text, ok){
-        msg.textContent = text || '';
-        msg.style.color = ok ? getComputedStyle(document.documentElement).getPropertyValue('--success') : getComputedStyle(document.documentElement).getPropertyValue('--danger');
+<body>
+
+  <h2>🔐 رمز ورود به سایت</h2>
+
+  <input type="password" id="sitePass" placeholder="رمز سایت..." />
+  <br />
+  <button onclick="submitAccess()">ورود</button>
+
+  <div id="msg"></div>
+
+  <script>
+    async function submitAccess() {
+      const msg = document.getElementById("msg");
+      msg.textContent = "";
+
+      const sitePassword = document.getElementById("sitePass").value.trim();
+
+      if (!sitePassword) {
+        msg.textContent = "لطفاً رمز را وارد کنید";
+        return;
       }
 
-      form.addEventListener('submit', async function(e){
-        e.preventDefault();
-        showMessage('', false);
-        const pass = document.getElementById('sitePassword').value.trim();
-        if(!pass){ showMessage('لطفاً رمز سایت را وارد کنید', false); return; }
+      try {
+        const res = await fetch('/auth/access', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sitePassword })
+        });
 
-        try{
-          const res = await fetch('/auth/access', {
-            method: 'POST',
-            headers: {'Content-Type':'application/json'},
-            body: JSON.stringify({ sitePassword: pass })
-          });
-          const data = await res.json().catch(()=>({}));
-          if(res.ok && data && data.ok){
-            showMessage('ورود موفق ✅', true);
-            setTimeout(()=> location.href = '/login.html', 700);
-          } else if (data && data.error) {
-            if(data.error === 'wrong_site_password' || data.error === 'missing_password') showMessage('رمز نادرست است ❌', false);
-            else showMessage('خطا: ' + data.error, false);
-          } else {
-            showMessage('خطا در ارتباط با سرور', false);
-          }
-        }catch(err){
-          console.error(err);
-          showMessage('خطا در اتصال به سرور', false);
+        let data = null;
+        try {
+          data = await res.json();
+        } catch (e) {
+          msg.textContent = "خطا در ارتباط با سرور";
+          return;
         }
-      });
-    });
+
+        if (!data.ok) {
+          if (data.error === 'invalid_site_password') {
+            msg.textContent = "رمز اشتباه است";
+          } else if (data.error === 'missing_password') {
+            msg.textContent = "رمز وارد نشده است";
+          } else {
+            msg.textContent = "خطای ناشناخته";
+          }
+          return;
+        }
+
+        // موفقیت
+        msg.style.color = "#66ff99";
+        msg.textContent = "✔ ورود موفق — در حال انتقال...";
+        setTimeout(() => {
+          window.location.href = "/login.html";
+        }, 700);
+
+      } catch (err) {
+        msg.textContent = "خطای ارتباط با سرور";
+      }
+    }
   </script>
-</head>
-<body>
-  <div class="wrap">
-    <div class="card" role="main" aria-labelledby="title">
-      <h1 id="title">Eclipse Hunter</h1>
-      <p class="lead">برای ورود، رمز سایت را وارد کنید</p>
 
-      <form id="accessForm" autocomplete="off" novalidate>
-        <input id="sitePassword" name="sitePassword" class="input" type="password" placeholder="رمز سایت" required />
-        <button type="submit" class="btn">ورود</button>
-      </form>
-
-      <div id="message" class="msg" aria-live="polite"></div>
-    </div>
-  </div>
 </body>
 </html>

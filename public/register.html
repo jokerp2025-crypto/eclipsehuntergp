@@ -1,153 +1,200 @@
 <!DOCTYPE html>
-<html lang="fa">
+<html lang="fa" dir="rtl">
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ثبت‌نام</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ثبت‌نام — Eclipse Hunter</title>
 
-    <style>
-        body {
-            margin: 0;
-            font-family: vazir, sans-serif;
-            background: #eef3f9;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            direction: rtl;
+  <style>
+    :root {
+      --tg-blue: #0088cc;
+      --bg: #eef6fc;
+      --card: #ffffff;
+      --muted: #6b7280;
+      --danger: #d70000;
+      --success: #059669;
+    }
+
+    * {
+      box-sizing: border-box;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;
+    }
+
+    body {
+      margin: 0;
+      background: linear-gradient(180deg, #ddecff 0%, #f4f7fb 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+    }
+
+    .card {
+      width: 100%;
+      max-width: 430px;
+      background: var(--card);
+      padding: 28px;
+      border-radius: 18px;
+      box-shadow: 0 8px 35px rgba(0,0,0,0.08);
+      text-align: center;
+      animation: fadeIn .6s ease;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    h1 {
+      margin: 0 0 6px;
+      color: var(--tg-blue);
+      font-size: 26px;
+    }
+
+    p {
+      margin: 0 0 22px;
+      font-size: 14px;
+      color: var(--muted);
+    }
+
+    form {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    input {
+      padding: 13px 14px;
+      font-size: 15px;
+      border: 1px solid #dbe4ee;
+      border-radius: 12px;
+      direction: ltr;
+      transition: 0.2s;
+    }
+
+    input:focus {
+      border-color: var(--tg-blue);
+      outline: none;
+      box-shadow: 0 0 0 3px rgba(0,136,204,0.15);
+    }
+
+    button {
+      padding: 13px;
+      border: none;
+      border-radius: 12px;
+      background: var(--tg-blue);
+      color: #fff;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: 0.2s;
+    }
+
+    button:hover {
+      opacity: 0.9;
+    }
+
+    .msg {
+      min-height: 22px;
+      margin-top: 14px;
+      font-size: 14px;
+    }
+
+    .links {
+      margin-top: 15px;
+    }
+
+    .links a {
+      text-decoration: none;
+      color: var(--tg-blue);
+      font-weight: 600;
+      padding: 0 4px;
+    }
+  </style>
+
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      const form = document.getElementById("registerForm");
+      const msg = document.getElementById("msg");
+
+      function showMessage(text, ok) {
+        msg.textContent = text;
+        msg.style.color = ok ? "var(--success)" : "var(--danger)";
+      }
+
+      form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+
+        const displayName = document.getElementById("displayName").value.trim();
+        const username = document.getElementById("username").value.trim();
+        const password = document.getElementById("password").value.trim();
+
+        // ===== FIXED: proper validation =====
+        if (!displayName || !username || !password) {
+          showMessage("⚠️ لطفاً همه فیلدها را کامل کنید", false);
+          return;
         }
 
-        .card {
-            background: #fff;
-            width: 350px;
-            padding: 25px;
-            border-radius: 14px;
-            box-shadow: 0 6px 20px rgba(0,0,0,0.1);
-            text-align: center;
-            animation: fadeIn .4s;
-        }
+        showMessage("⌛ در حال ثبت‌نام...", true);
 
-        h1 {
-            margin-bottom: 5px;
-            color: #2196f3;
-        }
+        try {
+          const res = await fetch("/auth/register", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ displayName, username, password })
+          });
 
-        p {
-            font-size: 14px;
-            margin-bottom: 18px;
-            color: #555;
-        }
+          let data = null;
+          try { data = await res.json(); } catch (err) { data = null; }
 
-        input {
-            width: 100%;
-            padding: 11px;
-            margin: 7px 0;
-            border: 1px solid #ddd;
-            border-radius: 8px;
-            font-size: 15px;
-            outline: none;
-        }
+          if (res.ok && data && (data.ok === true || data.ok)) {
+            showMessage("✅ ثبت‌نام موفق! در حال انتقال...", true);
+            setTimeout(() => (location.href = "/login.html"), 1200);
+            return;
+          }
 
-        input:focus {
-            border-color: #2196f3;
-        }
+          // handle different possible error strings that server might send
+          const errCode = data && data.error ? data.error : null;
+          if (errCode === "username_taken" || errCode === "username exists" || errCode === "user_exists") {
+            showMessage("❌ این آیدی از قبل وجود دارد", false);
+            return;
+          }
 
-        button {
-            width: 100%;
-            padding: 12px;
-            background: #2196f3;
-            color: #fff;
-            border: none;
-            border-radius: 8px;
-            font-size: 16px;
-            cursor: pointer;
-            margin-top: 12px;
+          // fallback messages
+          if (data && data.error) {
+            showMessage("⚠️ خطا: " + data.error, false);
+          } else if (!res.ok) {
+            showMessage("⚠️ خطا: پاسخ ناموفق از سرور", false);
+          } else {
+            showMessage("⚠️ خطا: مشکل در سرور", false);
+          }
+        } catch (err) {
+          console.error('Register error', err);
+          showMessage("❌ خطا در ارتباط با سرور", false);
         }
-
-        .msg {
-            margin-top: 10px;
-            font-size: 14px;
-            min-height: 20px;
-        }
-
-        .success {
-            color: #0a8a1f;
-        }
-
-        .error {
-            color: #d9534f;
-        }
-
-        .links a {
-            color: #2196f3;
-            font-size: 14px;
-            text-decoration: none;
-            margin: 0 4px;
-        }
-    </style>
+      });
+    });
+  </script>
 </head>
 
 <body>
+  <div class="card">
+    <h1>ثبت‌نام</h1>
+    <p>برای ساخت حساب جدید، اطلاعات زیر را وارد کنید</p>
 
-    <div class="card">
-        <h1>ثبت‌نام</h1>
-        <p>برای ساخت حساب جدید، اطلاعات زیر را وارد کنید</p>
+<form id="registerForm">
+      <input id="displayName" type="text" placeholder="نام نمایشی (مثلاً پارسا)" required />
+      <input id="username" type="text" placeholder="آیدی (مثلاً parsa123)" required />
+      <input id="password" type="password" placeholder="رمز عبور" required />
+      <button type="submit">ثبت‌نام</button>
+    </form>
 
-        <form id="registerForm">
-            <input id="displayName" type="text" placeholder="نام نمایشی" required />
-            <input id="username" type="text" placeholder="آیدی کاربری" required />
-            <input id="password" type="password" placeholder="رمز عبور" required />
-            <button type="submit">ثبت‌نام</button>
-        </form>
+    <div id="msg" class="msg"></div>
 
-        <div id="msg" class="msg"></div>
-
-        <div class="links">
-            <a href="/login.html">ورود</a> |
-            <a href="/access.html">بازگشت</a>
-        </div>
+    <div class="links">
+      <a href="/login.html">ورود</a> |
+      <a href="/access.html">بازگشت</a>
     </div>
-
-    <script>
-        const msgBox = document.getElementById("msg");
-
-        function showMessage(txt, type = "error") {
-            msgBox.textContent = txt;
-            msgBox.className = "msg " + type;
-        }
-
-        document.getElementById("registerForm").addEventListener("submit", async (e) => {
-            e.preventDefault();
-
-            const displayName = document.getElementById("displayName").value.trim();
-            const username = document.getElementById("username").value.trim();
-            const password = document.getElementById("password").value.trim();
-
-            try {
-                const res = await fetch("/api/register", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ displayName, username, password })
-                });
-
-                const data = await res.json();
-
-                if (data.success) {
-                    showMessage("✔️ ثبت‌نام با موفقیت انجام شد", "success");
-
-                    setTimeout(() => {
-                        window.location.href = "/login.html";
-                    }, 1600);
-
-                } else {
-                    showMessage("⚠️ " + (data.error || "خطا در ثبت‌نام"));
-                }
-
-            } catch (err) {
-                showMessage("خطا در اتصال به سرور", "error");
-            }
-        });
-    </script>
-
+  </div>
 </body>
 </html>
