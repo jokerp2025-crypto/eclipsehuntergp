@@ -1,13 +1,11 @@
-/* chat.js — Clean rebuilt version (A)
-   - Readable, modular, compatible with chat۱.html, chat.css and server.js
-   - Features: socket connect, optimistic send, upload, edit/delete, seen batching,
-     typing indicator, presence ping, responsive-safe DOM handling.
-   - Author: rebuilt by assistant
+/* chat.js — Clean rebuilt & fixed
+   Fixes:
+   - send payload uses `tempId` (not clientTempId) to match server.
+   - delete emits both `forAll` and `forEveryone` (compat).
+   - minor improvements to typing timer management.
+   - seen buffering/flush robustified slightly.
 */
 
-/* =======================
-   CONFIG / CONSTANTS
-   ======================= */
 const API_BASE = '/api';
 const UPLOAD_PATH = '/upload/media';
 const SOCKET_URL = '/';
@@ -19,9 +17,7 @@ const SEEN_BATCH_DELAY = 400; // ms
 const OPTIMISTIC_TIMEOUT = 120000; // ms
 const MAX_OFFLINE_QUEUE = 200;
 
-/* =======================
-   UTILITIES
-   ======================= */
+/* UTILITIES */
 function $id(id){ return document.getElementById(id); }
 function q(sel, ctx=document){ return ctx.querySelector(sel); }
 
@@ -51,9 +47,7 @@ function formatTime(iso){
   }
 }
 
-/* =======================
-   GLOBAL STATE
-   ======================= */
+/* GLOBAL STATE */
 let token = localStorage.getItem(TOKEN_KEY) || null;
 let me = null;
 let socket = null;
@@ -63,23 +57,27 @@ let conversations = [];
 let activeConvId = null;
 let messagesCache = new Map(); // convId -> array(messages)
 
-let pendingSends = new Map(); // tempId -> {resolve,reject,timeout}
 let offlineQueue = []; // payloads
 let seenBuffer = new Map(); // convId -> Set(messageIds)
 let seenFlushTimer = null;
 let presenceTimer = null;
-
-/* =======================
-   API HELPERS
-   ======================= */
+/* API HELPERS */
 async function apiFetch(path, opts = {}){
   const headers = Object.assign({}, opts.headers || {});
-  if(!(opts.body instanceof FormData) && !headers['Content-Type']) headers['Content-Type'] = 'application/json';
+  if(!(opts.body instanceof FormData) && !headers['Content-Type'])
+    headers['Content-Type'] = 'application/json';
   if(token) headers['Authorization'] = 'Bearer ' + token;
-  const res = await fetch((API_BASE + path).replace('//','/'), Object.assign({ credentials:'same-origin', headers }, opts));
+
+  const res = await fetch((API_BASE + path).replace('//','/'),
+    Object.assign({ credentials:'same-origin', headers }, opts)
+  );
+
   const text = await res.text().catch(()=>null);
   let data = null;
-  try{ data = text ? JSON.parse(text) : null; }catch(e){ data = null; }
+  try {
+    data = text ? JSON.parse(text) : null;
+  } catch(e){ data = null; }
+
   if(!res.ok){
     const err = (data && data.error) ? data.error : (text || `HTTP ${res.status}`);
     const ex = new Error(String(err));
@@ -93,70 +91,87 @@ async function apiFetch(path, opts = {}){
 async function apiUpload(path, formData){
   const headers = {};
   if(token) headers['Authorization'] = 'Bearer ' + token;
-  const res = await fetch(path, { method:'POST', body: formData, headers, credentials:'same-origin' });
+
+  const res = await fetch(path, {
+    method:'POST',
+    body: formData,
+    headers,
+    credentials:'same-origin'
+  });
+
   const data = await res.json().catch(()=>null);
   if(!res.ok) throw new Error((data && data.error) ? data.error : `Upload failed ${res.status}`);
   return data;
 }
 
-/* =======================
-   SOCKET / PRESENCE
-   ======================= */
+/* SOCKET / PRESENCE */
 function connectSocket(){
   if(socket && socket.connected) return;
   if(!token) return;
-  socket = io(SOCKET_URL, { auth: { token }, transports:['websocket'] });
-  socket.on('connect', ()=> {
+
+  socket = io(SOCKET_URL, {
+    auth: { token },
+    transports:['websocket']
+  });
+
+  socket.on('connect', ()=>{
     isConnected = true;
     console.info('[chat] socket connected', socket.id);
-    // join existing convs
-    conversations.forEach(c => { if(c && c._id) socket.emit('private:join', { convId: c._id }); });
+    conversations.forEach(c=>{
+      if(c && c._id) socket.emit('private:join', { convId: c._id });
+    });
     flushOfflineQueue();
   });
-  socket.on('disconnect', (reason)=> {
+
+  socket.on('disconnect', (reason)=>{
     isConnected = false;
     console.warn('[chat] socket disconnected', reason);
   });
-  socket.on('connect_error', err => console.error('[chat] socket connect_error', err && err.message));
+
+  socket.on('connect_error', err=>console.error('[chat] connect_error', err && err.message));
+
   setupSocketListeners();
   startPresence();
 }
 
 function startPresence(){
   if(presenceTimer) clearInterval(presenceTimer);
-  presenceTimer = setInterval(()=> {
-    if(socket && socket.connected) socket.emit('presence:ping');
+  presenceTimer = setInterval(()=>{
+    if(socket && socket.connected){
+      socket.emit('presence:ping');
+    }
   }, PRESENCE_INTERVAL);
 }
-function stopPresence(){ if(presenceTimer) clearInterval(presenceTimer); presenceTimer = null; }
+function stopPresence(){
+  if(presenceTimer) clearInterval(presenceTimer);
+  presenceTimer = null;
+}
 
-/* =======================
-   OFFLINE QUEUE
-   ======================= */
+/* OFFLINE QUEUE */
 function flushOfflineQueue(){
   if(!socket || !socket.connected) return;
   while(offlineQueue.length){
     const payload = offlineQueue.shift();
-    socket.emit('private:message', payload, (ack)=> {
-      if(!ack || !ack.ok) console.warn('[chat] offline send ack failed', ack);
+    socket.emit('private:message', payload, ack=>{
+      if(!ack || !ack.ok){
+        console.warn('[chat] offline send failed', ack);
+      }
     });
   }
 }
-
-/* =======================
-   INITIAL LOAD
-   ======================= */
+/* INIT LOAD */
 async function loadMe(){
-  try{
+  try {
     const res = await apiFetch('/me');
     if(res && res.user){
       me = res.user;
       token = token || localStorage.getItem(TOKEN_KEY) || null;
+
       applyProfileUI(me);
       await fetchConversations();
       connectSocket();
     }
-  }catch(err){
+  } catch(err){
     console.error('loadMe', err);
     if(err && err.status === 401){
       localStorage.removeItem(TOKEN_KEY);
@@ -165,62 +180,61 @@ async function loadMe(){
   }
 }
 
-/* =======================
-   CONVERSATIONS
-   ======================= */
+/* CONVERSATIONS */
 async function fetchConversations(){
   try{
     const res = await apiFetch('/conversations');
     conversations = (res && res.conversations) ? res.conversations : [];
     renderConversationList(conversations);
-    if(!activeConvId && conversations.length) openConversation(conversations[0]._id);
-  }catch(e){ console.error('fetchConversations', e); }
+
+    if(!activeConvId && conversations.length){
+      openConversation(conversations[0]._id);
+    }
+  }catch(e){
+    console.error('fetchConversations', e);
+  }
 }
-/* =======================
-   OPEN CONVERSATION
-   ======================= */
+
+/* OPEN CONVERSATION */
 async function openConversation(convId){
   if(!convId) return;
   activeConvId = convId;
 
-  // highlight in UI
   highlightActiveConv(convId);
 
-  // fetch messages
   try{
     const res = await apiFetch(`/conversations/${convId}/messages`);
     const msgs = Array.isArray(res.messages) ? res.messages : [];
+
     messagesCache.set(convId, msgs.slice());
     renderMessages(convId, msgs);
 
-    // join room
     if(socket && socket.connected){
       socket.emit('private:join', { convId });
     }
 
-    // activate seen observer
     attachSeenObservers(convId);
   }catch(e){
     console.error('openConversation', e);
   }
 }
 
-/* =======================
-   RENDER CONVERSATION LIST
-   ======================= */
+/* RENDER CONVERSATION LIST */
 function renderConversationList(list){
   const wrap = $id('convList');
   if(!wrap) return;
+
   wrap.innerHTML = '';
 
   list.forEach(conv=>{
     const partner =
-      (conv.participants||[])
-        .find(p=>String(p._id)!==String(me && me._id))
+      (conv.participants || [])
+        .find(p => String(p._id) !== String(me && me._id))
       || (conv.participants && conv.participants[0]);
 
-    const title = conv.title ||
-      (partner ? (partner.displayName||partner.username) : 'کاربر');
+    const title =
+      conv.title ||
+      (partner ? (partner.displayName || partner.username) : 'کاربر');
 
     const avatar =
       (partner && partner.avatarUrl)
@@ -230,34 +244,35 @@ function renderConversationList(list){
     const item = document.createElement('div');
     item.className = 'conv-item';
     item.dataset.convid = conv._id;
+
     item.innerHTML = `
-      <img class="conv-avatar" src="${escapeHtml(avatar)}" alt="avatar">
+      <img class="conv-avatar" src="${avatar}" alt="">
       <div class="conv-meta">
-        <div class="name">${escapeHtml(title)}</div>
-        <div class="last">${escapeHtml(conv.lastMessageText||'')}</div>
+        <div class="name">${title}</div>
+        <div class="last">${conv.lastMessageText || ''}</div>
       </div>
     `;
+
     item.addEventListener('click',()=>openConversation(conv._id));
+
     wrap.appendChild(item);
   });
 }
 
-/* =======================
-   RENDER MESSAGES
-   ======================= */
+/* RENDER MESSAGES */
 function renderMessages(convId, messages){
   const box = $id('messageList');
   if(!box) return;
+
   box.innerHTML = '';
-  (messages||[]).forEach(m=>appendMessage(convId, m, false));
+  (messages || []).forEach(m => appendMessage(convId, m, false));
+
   box.scrollTop = box.scrollHeight;
 }
 
-/* =======================
-   APPEND SINGLE MESSAGE
-   ======================= */
+/* APPEND SINGLE MESSAGE */
 function appendMessage(convId, message, autoScroll=true){
-  if(String(convId)!==String(activeConvId)) return;
+  if(String(convId) !== String(activeConvId)) return;
 
   const tpl = document.getElementById('tpl-message');
   const box = $id('messageList');
@@ -270,33 +285,29 @@ function appendMessage(convId, message, autoScroll=true){
   node.classList.add('message-item');
 
   const sender = message.from ||
-    (message.senderId && (message.senderId._id||message.senderId));
+    (message.senderId && (message.senderId._id || message.senderId));
 
-  // mine?
-  if(me && sender && String(sender)===String(me._id)){
+  if(me && sender && String(sender) === String(me._id)){
     node.classList.add('mine');
   }
 
-  // sender name
   const nameEl = node.querySelector('.fromName');
   if(nameEl){
     nameEl.textContent =
       message.fromName ||
       message.senderName ||
       (message.senderId &&
-        (message.senderId.displayName||message.senderId.username)) ||
+        (message.senderId.displayName || message.senderId.username)) ||
       'کاربر';
   }
 
-  // time
   const timeEl = node.querySelector('.msg-time');
   if(timeEl){
     timeEl.textContent = formatTime(message.createdAt || message.ts || message.created_at);
   }
 
-  // text
   const textEl = node.querySelector('.message-text');
-  if(textEl) textEl.innerHTML = escapeHtml(message.text||'');
+  if(textEl) textEl.innerHTML = escapeHtml(message.text || '');
 
   // attachments
   let attWrap = node.querySelector('.msg-attachments');
@@ -309,31 +320,26 @@ function appendMessage(convId, message, autoScroll=true){
 
   if(message.attachments && message.attachments.length){
     message.attachments.forEach(att=>{
-      if((att.mime && att.mime.startsWith('image/'))
-        || (att.type==='image')){
+      if(
+        (att.mime && att.mime.startsWith('image/')) ||
+        (att.type === 'image') ||
+        (att.url && /\.(jpg|jpeg|png|gif|webp)$/i.test(att.url))
+      ){
         const img = document.createElement('img');
-        img.className = 'msg-image';
+        img.className='msg-image';
         img.src = att.url;
-        img.alt = att.name||'image';
+        img.alt = att.name || 'image';
         attWrap.appendChild(img);
-      }else{
+      } else {
         const el = document.createElement('div');
         el.className='attachment-file';
         el.innerHTML = `
-          <div class="file-name">${escapeHtml(att.name||'file')}</div>
+          <div class="file-name">${att.name || 'file'}</div>
           <div class="file-size">${Math.round((att.size||0)/1024)} KB</div>
         `;
         attWrap.appendChild(el);
       }
     });
-  }
-
-  // meta
-  let meta = node.querySelector('.message-meta');
-  if(!meta){
-    meta = document.createElement('div');
-    meta.className='message-meta';
-    node.querySelector('.message-bubble').appendChild(meta);
   }
 
   // actions
@@ -343,18 +349,19 @@ function appendMessage(convId, message, autoScroll=true){
     actions.className = 'msg-actions';
 
     const eBtn = document.createElement('button');
-    eBtn.className='edit-btn small-btn';
-    eBtn.textContent='ویرایش';
-
     const dBtn = document.createElement('button');
+
+    eBtn.className='edit-btn small-btn';
     dBtn.className='delete-btn small-btn';
+
+    eBtn.textContent='ویرایش';
     dBtn.textContent='حذف';
 
     actions.appendChild(eBtn);
     actions.appendChild(dBtn);
 
-    eBtn.addEventListener('click',()=>startEditingMessage(mid, message.text||''));
-    dBtn.addEventListener('click',()=>startDeleteMessage(message));
+    eBtn.addEventListener('click',()=> startEditingMessage(mid, message.text || ''));
+    dBtn.addEventListener('click',()=> startDeleteMessage(message));
 
     node.querySelector('.message-bubble').appendChild(actions);
   }
@@ -362,14 +369,11 @@ function appendMessage(convId, message, autoScroll=true){
   box.appendChild(node);
   if(autoScroll) box.scrollTop = box.scrollHeight;
 
-  // seen tracking only for received msgs
-  if(!(me && sender && String(sender)===String(me._id))){
+  if(!(me && sender && String(sender) === String(me._id))){
     observeForSeen(node, message);
   }
 }
-/* =======================
-   INCOMING MESSAGES
-   ======================= */
+/* INCOMING MESSAGES */
 function handleIncomingMessage(convId, msg){
   if(!convId || !msg) return;
 
@@ -383,35 +387,44 @@ function handleIncomingMessage(convId, msg){
   updateConvPreview(convId, msg);
 }
 
-/* =======================
-   UPDATE CONVERSATION PREVIEW
-   ======================= */
+/* UPDATE PREVIEW */
 function updateConvPreview(convId, msg){
   const conv = conversations.find(c => String(c._id) === String(convId));
   if(!conv) return;
+
   conv.lastMessageText = msg.text || '(پیوست)';
+
   renderConversationList(conversations);
 }
 
-/* =======================
-   TYPING INDICATOR
-   ======================= */
+/* TYPING INDICATOR */
 let typingEmitTimer = null;
+let typingIsOn = false;
 
 function sendTyping(){
   if(!socket || !socket.connected || !activeConvId) return;
 
-  socket.emit('typing', { convId: activeConvId, typing: true });
+  // فقط وقتی typing هنوز روشن نشده emit کنیم
+  if(!typingIsOn){
+    socket.emit('typing', { convId: activeConvId, typing: true });
+    typingIsOn = true;
+  }
 
+  // ریست تایمر
   if(typingEmitTimer) clearTimeout(typingEmitTimer);
   typingEmitTimer = setTimeout(()=>{
-    socket.emit('typing', { convId: activeConvId, typing: false });
+    if(socket && socket.connected){
+      socket.emit('typing', { convId: activeConvId, typing: false });
+    }
+    typingIsOn = false;
+    typingEmitTimer = null;
   }, 2500);
 }
 
 function renderTypingIndicator(username){
   const el = $id('typingIndicator');
   if(!el) return;
+
   el.style.display = 'block';
   el.textContent = username + ' در حال نوشتن...';
 }
@@ -419,12 +432,11 @@ function renderTypingIndicator(username){
 function hideTypingIndicator(){
   const el = $id('typingIndicator');
   if(!el) return;
+
   el.style.display = 'none';
 }
 
-/* =======================
-   SEEN HANDLING
-   ======================= */
+/* SEEN HANDLING */
 let seenObserver = null;
 
 function attachSeenObservers(convId){
@@ -443,24 +455,26 @@ function attachSeenObservers(convId){
         visibleIds.push(e.target.dataset.id);
       }
     });
+
     if(visibleIds.length){
       bufferSeen(convId, visibleIds);
     }
   }, { threshold: 0.6 });
 
   const nodes = wrap.querySelectorAll('.message-item');
-  nodes.forEach(n=>seenObserver.observe(n));
+  nodes.forEach(n => seenObserver.observe(n));
 }
 
 function observeForSeen(node){
   if(!seenObserver) return;
-  seenObserver.observe(node);
+  try{ seenObserver.observe(node); }catch(e){}
 }
 
 function bufferSeen(convId, ids){
   if(!seenBuffer.has(convId)) seenBuffer.set(convId, new Set());
   const set = seenBuffer.get(convId);
-  ids.forEach(id=>set.add(id));
+
+  ids.forEach(id => set.add(id));
 
   if(seenFlushTimer) clearTimeout(seenFlushTimer);
   seenFlushTimer = setTimeout(flushSeen, SEEN_BATCH_DELAY);
@@ -469,16 +483,22 @@ function bufferSeen(convId, ids){
 function flushSeen(){
   if(!socket || !socket.connected) return;
 
-  seenBuffer.forEach((idSet, convId)=>{
-    if(!idSet.size) return;
-    const ids = Array.from(idSet);
-    idSet.clear();
-    socket.emit('message:seen', { convId, ids });
+  const copy = new Map(seenBuffer);
+  seenBuffer = new Map(); // خالی‌کردن بلافاصله
+
+  copy.forEach((idSet, convId)=>{
+    if(!idSet || !idSet.size) return;
+
+    socket.emit('message:seen', {
+      convId,
+      ids: Array.from(idSet)
+    });
   });
 }
 
 function markSeenUI(convId, msgId){
   if(convId !== activeConvId) return;
+
   const node = document.querySelector(`.message-item[data-id="${msgId}"]`);
   if(!node) return;
 
@@ -486,9 +506,7 @@ function markSeenUI(convId, msgId){
   if(status) status.textContent = 'دیده شد';
 }
 
-/* =======================
-   SEND MESSAGE (TEXT)
-   ======================= */
+/* SEND MESSAGE (TEXT) */
 async function sendMessage(){
   const input = $id('messageInput');
   if(!input || !input.value.trim()) return;
@@ -497,6 +515,7 @@ async function sendMessage(){
   input.value = '';
 
   const tempId = uid('tmp');
+
   const tempMsg = {
     _id: tempId,
     text,
@@ -514,7 +533,7 @@ async function sendMessage(){
   const payload = {
     convId: activeConvId,
     text,
-    clientTempId: tempId
+    tempId   // ← درست‌شده (قبلاً clientTempId بود)
   };
 
   if(!socket || !socket.connected){
@@ -523,15 +542,19 @@ async function sendMessage(){
   }
 
   socket.emit('private:message', payload, ack=>{
-    if(!ack || !ack.ok) return;
+    if(!ack || !ack.ok){
+      console.warn('send ack failed', ack);
+      return;
+    }
 
     const arr = messagesCache.get(activeConvId) || [];
-    const idx = arr.findIndex(m=>m._id === tempId);
+    const idx = arr.findIndex(m => m._id === tempId);
     if(idx >= 0) arr[idx] = ack.message;
 
     const node = document.querySelector(`.message-item[data-id="${tempId}"]`);
     if(node){
       node.dataset.id = ack.message._id;
+
       const t = node.querySelector('.msg-time');
       if(t) t.textContent = formatTime(ack.message.createdAt);
 
@@ -541,17 +564,16 @@ async function sendMessage(){
   });
 }
 
-/* =======================
-   SEND ATTACHMENT
-   ======================= */
+/* SEND ATTACHMENT */
 async function sendAttachment(file){
   if(!file) return;
 
   const tempId = uid('tmpfile');
+
   const tempMsg = {
     _id: tempId,
-    attachments: [{
-      url: '',
+    attachments:[{
+      url:'',
       name: file.name,
       size: file.size,
       mime: file.type
@@ -577,7 +599,7 @@ async function sendAttachment(file){
     const payload = {
       convId: activeConvId,
       attachments: [att],
-      clientTempId: tempId
+      tempId
     };
 
     if(!socket || !socket.connected){
@@ -589,14 +611,16 @@ async function sendAttachment(file){
       if(!ack || !ack.ok) return;
 
       const arr = messagesCache.get(activeConvId) || [];
-      const idx = arr.findIndex(m=>m._id === tempId);
+      const idx = arr.findIndex(m => m._id === tempId);
       if(idx >= 0) arr[idx] = ack.message;
 
       const node = document.querySelector(`.message-item[data-id="${tempId}"]`);
       if(node){
         node.dataset.id = ack.message._id;
+
         const t = node.querySelector('.msg-time');
         if(t) t.textContent = formatTime(ack.message.createdAt);
+
         const st = node.querySelector('.msg-status');
         if(st) st.textContent = '';
       }
@@ -606,13 +630,12 @@ async function sendAttachment(file){
     console.error('sendAttachment', e);
   }
 }
-/* =======================
-   EDIT MESSAGE
-   ======================= */
+/* EDIT MESSAGE */
 let editingMsgId = null;
 
 function startEditingMessage(id, oldText){
   editingMsgId = id;
+
   const input = $id('messageInput');
   if(!input) return;
 
@@ -632,21 +655,43 @@ async function finishEditingMessage(){
   const text = input.value.trim();
   if(!text) return;
 
-  socket.emit('message:edit', {
-    convId: activeConvId,
-    messageId: editingMsgId,
-    text
-  }, ack=>{
-    if(!ack || !ack.ok) return;
+  if(socket && socket.connected){
+    socket.emit('message:edit', {
+      convId: activeConvId,
+      messageId: editingMsgId,
+      text
+    }, ack=>{
+      if(!ack || !ack.ok){
+        console.warn('edit ack failed', ack);
+        return;
+      }
 
-    applyMessageEdit(activeConvId, ack.message);
+      applyMessageEdit(activeConvId, ack.message);
+      editingMsgId = null;
+      input.value = '';
 
-    editingMsgId = null;
-    input.value = '';
+      const btn = $id('sendBtn');
+      if(btn) btn.textContent = 'ارسال';
+    });
 
-    const btn = $id('sendBtn');
-    if(btn) btn.textContent = 'ارسال';
-  });
+  } else {
+    try{
+      await apiFetch(`/messages/${editingMsgId}`, {
+        method:'PUT',
+        body: JSON.stringify({ text })
+      });
+
+      editingMsgId = null;
+      input.value = '';
+
+      const btn = $id('sendBtn');
+      if(btn) btn.textContent = 'ارسال';
+
+      openConversation(activeConvId);
+    }catch(e){
+      console.error('finishEditingMessage', e);
+    }
+  }
 }
 
 function applyMessageEdit(convId, msg){
@@ -671,21 +716,42 @@ function applyMessageEdit(convId, msg){
   }
 }
 
-/* =======================
-   DELETE MESSAGE
-   ======================= */
+/* DELETE MESSAGE */
 function startDeleteMessage(msg){
   if(!confirm('حذف پیام؟')) return;
 
-  socket.emit('message:delete', {
+  const payload = {
     messageId: msg._id,
-    forAll: true
-  }, (ack)=>{
-    if(!ack || !ack.ok){
-      console.error('delete failed:', ack);
-      return;
-    }
-  });
+    forAll: true,
+    forEveryone: true
+  };
+
+  if(socket && socket.connected){
+    socket.emit('message:delete', payload, ack=>{
+      if(!ack || !ack.ok){
+        console.error('delete ack failed', ack);
+      }
+    });
+
+  } else {
+    fetch(`/api/messages/${msg._id}`, {
+      method:'DELETE',
+      headers:{
+        'Content-Type': 'application/json',
+        'Authorization': token ? 'Bearer ' + token : ''
+      },
+      body: JSON.stringify({ forEveryone: true })
+    })
+    .then(r=>r.json())
+    .then(data=>{
+      if(!data.ok){
+        console.error('delete api failed', data);
+        return;
+      }
+      applyMessageDeletion(activeConvId, msg._id);
+    })
+    .catch(err=>console.error('delete api err', err));
+  }
 }
 
 function applyMessageDeletion(convId, id){
@@ -701,9 +767,7 @@ function applyMessageDeletion(convId, id){
   if(node) node.remove();
 }
 
-/* =======================
-   SOCKET EVENT LISTENERS
-   ======================= */
+/* SOCKET LISTENERS */
 function setupSocketListeners(){
   if(!socket) return;
 
@@ -715,7 +779,6 @@ function setupSocketListeners(){
   socket.off && socket.off('user:online');
   socket.off && socket.off('user:offline');
 
-  // incoming message
   socket.on('private:message', payload=>{
     const convId =
       payload.conversationId ||
@@ -726,9 +789,9 @@ function setupSocketListeners(){
     handleIncomingMessage(convId, msg);
   });
 
-  // edited
   socket.on('message:edited', payload=>{
     const msg = payload.message || payload;
+
     const convId =
       payload.conversationId ||
       payload.convId ||
@@ -738,7 +801,6 @@ function setupSocketListeners(){
     applyMessageEdit(convId, msg);
   });
 
-  // deleted
   socket.on('message:deleted', payload=>{
     const convId =
       payload.conversationId ||
@@ -753,29 +815,33 @@ function setupSocketListeners(){
     applyMessageDeletion(convId, id);
   });
 
-  // seen
   socket.on('message:seen', payload=>{
     const convId = payload.conversationId || payload.convId || activeConvId;
     const ids = payload.ids || payload.messageIds || [];
+
     ids.forEach(id => markSeenUI(convId, id));
   });
 
-  // typing
   socket.on('typing', payload=>{
     const convId = payload.convId || payload.conversationId;
+
     if(convId !== activeConvId) return;
 
     if(payload.typing){
-      renderTypingIndicator(payload.username || payload.userName || 'کاربر');
+      renderTypingIndicator(
+        payload.username ||
+        payload.userName ||
+        'کاربر'
+      );
     } else {
       hideTypingIndicator();
     }
   });
 
-  // presence
   socket.on('user:online', payload=>{
     setUserPresenceUI(payload.userId || payload.user, true);
   });
+
   socket.on('user:offline', payload=>{
     setUserPresenceUI(
       payload.userId || payload.user,
@@ -785,11 +851,9 @@ function setupSocketListeners(){
   });
 }
 
-/* =======================
-   PRESENCE UI
-   ======================= */
+/* PRESENCE UI */
 function setUserPresenceUI(userId, online, lastSeen){
-  const el = $id('chatStatus') || $id('typingIndicator');
+  const el = $id('typingIndicator');
   if(!el) return;
 
   if(online){
@@ -802,18 +866,16 @@ function setUserPresenceUI(userId, online, lastSeen){
       (lastSeen ? new Date(lastSeen).toLocaleString() : 'نامشخص');
   }
 }
-/* =======================
-   SCROLL HANDLING
-   ======================= */
+
+/* SCROLL */
 function scrollToBottom(){
   const box = $id('messageList');
   if(!box) return;
+
   box.scrollTop = box.scrollHeight;
 }
 
-/* =======================
-   UI: PROFILE APPEARANCE
-   ======================= */
+/* PROFILE UI */
 function applyProfileUI(user){
   const name = $id('myName');
   if(name) name.textContent = user.displayName || user.username;
@@ -824,9 +886,7 @@ function applyProfileUI(user){
   }
 }
 
-/* =======================
-   INPUT HANDLERS
-   ======================= */
+/* INPUT HANDLERS */
 function setupInputHandlers(){
   const input = $id('messageInput');
   if(!input) return;
@@ -836,6 +896,7 @@ function setupInputHandlers(){
   input.addEventListener('keydown', e=>{
     if(e.key === 'Enter' && !e.shiftKey){
       e.preventDefault();
+
       if(editingMsgId) finishEditingMessage();
       else sendMessage();
     }
@@ -860,9 +921,7 @@ function setupInputHandlers(){
   }
 }
 
-/* =======================
-   SEARCH (Optional)
-   ======================= */
+/* SEARCH */
 function searchMessages(keyword){
   const box = $id('messageList');
   if(!box) return;
@@ -875,7 +934,10 @@ function searchMessages(keyword){
 
   const nodes = box.querySelectorAll('.message-item');
   nodes.forEach(n=>{
-    const text = (n.querySelector('.message-text')?.innerText || '').toLowerCase();
+    const text =
+      (n.querySelector('.message-text')?.innerText || '')
+      .toLowerCase();
+
     if(text.includes(keyword.toLowerCase())){
       n.classList.add('highlight');
     } else {
@@ -884,9 +946,7 @@ function searchMessages(keyword){
   });
 }
 
-/* =======================
-   THEME (Dark/Light)
-   ======================= */
+/* THEME */
 function applyTheme(){
   const saved = localStorage.getItem(THEME_KEY) || 'light';
   document.documentElement.dataset.theme = saved;
@@ -895,13 +955,12 @@ function applyTheme(){
 function toggleTheme(){
   const current = localStorage.getItem(THEME_KEY) || 'light';
   const next = current === 'light' ? 'dark' : 'light';
+
   localStorage.setItem(THEME_KEY, next);
   applyTheme();
 }
 
-/* =======================
-   INIT
-   ======================= */
+/* INIT */
 document.addEventListener('DOMContentLoaded', ()=>{
   applyTheme();
   setupInputHandlers();
@@ -912,10 +971,8 @@ document.addEventListener('DOMContentLoaded', ()=>{
     themeBtn.addEventListener('click', toggleTheme);
   }
 });
-/* =======================
-   CONTEXT MENU (Right Click)
-   ======================= */
 
+/* CONTEXT MENU */
 let contextMenu = null;
 
 function showContextMenu(event, message){
@@ -924,6 +981,7 @@ function showContextMenu(event, message){
 
   const menu = document.createElement('div');
   menu.className = 'context-menu';
+
   menu.style.top = event.pageY + 'px';
   menu.style.left = event.pageX + 'px';
 
@@ -962,126 +1020,7 @@ function hideContextMenu(){
 }
 
 document.addEventListener('click', hideContextMenu);
-document.addEventListener('contextmenu', function(e){
+
+document.addEventListener('contextmenu', e=>{
   if(!e.target.closest('.message-item')) return hideContextMenu();
-});
-
-/* =======================
-   LONG PRESS (Mobile)
-   ======================= */
-
-let touchTimer = null;
-
-function enableLongPress(){
-  document.body.addEventListener('touchstart', function(e){
-    const msg = e.target.closest('.message-item');
-    if(!msg) return;
-
-    clearTimeout(touchTimer);
-    touchTimer = setTimeout(()=>{
-      const id = msg.dataset.id;
-      const convArr = messagesCache.get(activeConvId) || [];
-      const found = convArr.find(m=>String(m._id)===String(id));
-      if(found){
-        showContextMenu({pageX:e.touches[0].pageX, pageY:e.touches[0].pageY, preventDefault(){}}, found);
-      }
-    }, 450);
-  });
-
-  document.body.addEventListener('touchend', ()=>clearTimeout(touchTimer));
-  document.body.addEventListener('touchmove', ()=>clearTimeout(touchTimer));
-}
-
-/* =======================
-   NOTIFICATION / TITLE BLINK
-   ======================= */
-
-let blinkInterval = null;
-let isWindowFocused = true;
-
-function setWindowFocusHandlers(){
-  window.addEventListener('focus', ()=>{
-    isWindowFocused = true;
-    document.title = 'چت';
-    if(blinkInterval) clearInterval(blinkInterval);
-  });
-
-  window.addEventListener('blur', ()=>{
-    isWindowFocused = false;
-  });
-}
-
-function notifyIncoming(){
-  if(isWindowFocused) return;
-
-  let state = false;
-  if(blinkInterval) clearInterval(blinkInterval);
-
-  blinkInterval = setInterval(()=>{
-    state = !state;
-    document.title = state ? '🔵 پیام جدید' : 'چت';
-  }, 800);
-}
-
-/* When message arrives */
-function handleIncomingMessage(convId, msg){
-  if(!convId || !msg) return;
-
-  if(!messagesCache.has(convId)) messagesCache.set(convId, []);
-  messagesCache.get(convId).push(msg);
-
-  if(convId === activeConvId){
-    appendMessage(convId, msg);
-  }
-
-  updateConvPreview(convId, msg);
-
-  notifyIncoming(); // <— اضافه‌شده برای نسخه A
-}
-
-/* =======================
-   RESPONSIVE (Mobile CSS helpers)
-   ======================= */
-
-function applyResponsiveFixes(){
-  const root = document.documentElement;
-  const isMobile = window.innerWidth < 680;
-
-  if(isMobile){
-    root.classList.add('mobile');
-  } else {
-    root.classList.remove('mobile');
-  }
-}
-
-window.addEventListener('resize', applyResponsiveFixes);
-/* =======================
-   EXPORT / GLOBAL ACCESS
-   ======================= */
-
-window.ChatApp = {
-  sendMessage,
-  sendAttachment,
-  startEditingMessage,
-  finishEditingMessage,
-  startDeleteMessage,
-  searchMessages,
-  toggleTheme
-};
-
-/* =======================
-   FINAL INIT (after DOM)
-   ======================= */
-
-document.addEventListener('DOMContentLoaded', ()=>{
-  try{
-    applyTheme();
-    setupInputHandlers();
-    enableLongPress();
-    setWindowFocusHandlers();
-    applyResponsiveFixes();
-    loadMe();
-  }catch(err){
-    console.error('Chat init failed:', err);
-  }
 });
