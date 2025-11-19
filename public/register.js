@@ -1,63 +1,47 @@
+const API_BASE = "/auth";
 
-    document.addEventListener("DOMContentLoaded", () => {
-      const form = document.getElementById("registerForm");
-      const msg = document.getElementById("msg");
+document.addEventListener("DOMContentLoaded", () => {
 
-      function showMessage(text, ok) {
-        msg.textContent = text;
-        msg.style.color = ok ? "var(--success)" : "var(--danger)";
-      }
+    const form = document.getElementById("registerForm");
+    const nameEl = document.getElementById("name");
+    const emailEl = document.getElementById("email");
+    const passEl = document.getElementById("password");
+    const errorBox = document.getElementById("errorBox");
 
-      form.addEventListener("submit", async (e) => {
+    form.addEventListener("submit", async (e) => {
         e.preventDefault();
+        errorBox.textContent = "";
 
-        const displayName = document.getElementById("displayName").value.trim();
-        const username = document.getElementById("username").value.trim();
-        const password = document.getElementById("password").value.trim();
-
-        // ===== FIXED: proper validation =====
-        if (!displayName || !username || !password) {
-          showMessage("⚠️ لطفاً همه فیلدها را کامل کنید", false);
-          return;
+        if (!nameEl.value || !emailEl.value || !passEl.value) {
+            errorBox.textContent = "همه فیلدها باید پر شوند.";
+            return;
         }
-
-        showMessage("⌛ در حال ثبت‌نام...", true);
 
         try {
-          const res = await fetch("/auth/register", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ displayName, username, password })
-          });
+            const res = await fetch(`${API_BASE}/register`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    username: emailEl.value,       // ← اصلاح شد
+                    password: passEl.value,
+                    displayName: nameEl.value      // ← اصلاح شد
+                })
+            });
 
-          let data = null;
-          try { data = await res.json(); } catch (err) { data = null; }
+            const data = await res.json();
 
-          if (res.ok && data && (data.ok === true || data.ok)) {
-            showMessage("✅ ثبت‌نام موفق! در حال انتقال...", true);
-            setTimeout(() => (location.href = "/login.html"), 1200);
-            return;
-          }
+            if (!data.ok) {
+                errorBox.textContent = data.error || "ثبت‌نام ناموفق بود.";
+                return;
+            }
 
-          // handle different possible error strings that server might send
-          const errCode = data && data.error ? data.error : null;
-          if (errCode === "username_taken" || errCode === "username exists" || errCode === "user_exists") {
-            showMessage("❌ این آیدی از قبل وجود دارد", false);
-            return;
-          }
+            window.location.href = "/login.html";
 
-          // fallback messages
-          if (data && data.error) {
-            showMessage("⚠️ خطا: " + data.error, false);
-          } else if (!res.ok) {
-            showMessage("⚠️ خطا: پاسخ ناموفق از سرور", false);
-          } else {
-            showMessage("⚠️ خطا: مشکل در سرور", false);
-          }
         } catch (err) {
-          console.error('Register error', err);
-          showMessage("❌ خطا در ارتباط با سرور", false);
+            errorBox.textContent = "خطای اتصال به سرور";
+            console.error(err);
         }
-      });
     });
-  
+});

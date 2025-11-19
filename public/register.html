@@ -1,138 +1,34 @@
 <!DOCTYPE html>
 <html lang="fa" dir="rtl">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>ثبت‌نام — Eclipse Hunter</title>
-
-  <style>
-    :root {
-      --tg-blue: #0088cc;
-      --bg: #eef6fc;
-      --card: #ffffff;
-      --muted: #6b7280;
-      --danger: #d70000;
-      --success: #059669;
-    }
-
-    * {
-      box-sizing: border-box;
-      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;
-    }
-
-    body {
-      margin: 0;
-      background: linear-gradient(180deg, #ddecff 0%, #f4f7fb 100%);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      min-height: 100vh;
-    }
-
-    .card {
-      width: 100%;
-      max-width: 430px;
-      background: var(--card);
-      padding: 28px;
-      border-radius: 18px;
-      box-shadow: 0 8px 35px rgba(0,0,0,0.08);
-      text-align: center;
-      animation: fadeIn .6s ease;
-    }
-
-    @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(10px); }
-      to   { opacity: 1; transform: translateY(0); }
-    }
-
-    h1 {
-      margin: 0 0 6px;
-      color: var(--tg-blue);
-      font-size: 26px;
-    }
-
-    p {
-      margin: 0 0 22px;
-      font-size: 14px;
-      color: var(--muted);
-    }
-
-    form {
-      display: flex;
-      flex-direction: column;
-      gap: 14px;
-    }
-
-    input {
-      padding: 13px 14px;
-      font-size: 15px;
-      border: 1px solid #dbe4ee;
-      border-radius: 12px;
-      direction: ltr;
-      transition: 0.2s;
-    }
-
-    input:focus {
-      border-color: var(--tg-blue);
-      outline: none;
-      box-shadow: 0 0 0 3px rgba(0,136,204,0.15);
-    }
-
-    button {
-      padding: 13px;
-      border: none;
-      border-radius: 12px;
-      background: var(--tg-blue);
-      color: #fff;
-      font-size: 15px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: 0.2s;
-    }
-
-    button:hover {
-      opacity: 0.9;
-    }
-
-    .msg {
-      min-height: 22px;
-      margin-top: 14px;
-      font-size: 14px;
-    }
-
-    .links {
-      margin-top: 15px;
-    }
-
-    .links a {
-      text-decoration: none;
-      color: var(--tg-blue);
-      font-weight: 600;
-      padding: 0 4px;
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ثبت نام</title>
+    <link rel="stylesheet" href="login-register.css">
 </head>
 
 <body>
-  <div class="card">
-    <h1>ثبت‌نام</h1>
-    <p>برای ساخت حساب جدید، اطلاعات زیر را وارد کنید</p>
 
-<form id="registerForm">
-      <input id="displayName" type="text" placeholder="نام نمایشی (مثلاً پارسا)" required />
-      <input id="username" type="text" placeholder="آیدی (مثلاً parsa123)" required />
-      <input id="password" type="password" placeholder="رمز عبور" required />
-      <button type="submit">ثبت‌نام</button>
-    </form>
+    <div class="container">
+        <div class="form-container">
+            <h2>ایجاد حساب کاربری</h2>
 
-    <div id="msg" class="msg"></div>
+            <form id="registerForm">
+                <input id="name" type="text" placeholder="نام" />
+                <input id="email" type="email" placeholder="ایمیل" />
+                <input id="password" type="password" placeholder="رمز عبور" />
 
-    <div class="links">
-      <a href="/login.html">ورود</a> |
-      <a href="/access.html">بازگشت</a>
+                <div id="errorBox" class="error"></div>
+
+                <button type="submit">ثبت نام</button>
+            </form>
+
+            <a href="/login.html" class="link">ورود</a>
+        </div>
     </div>
-  </div>
 
-<script src="/register.js"></script>
+    <!-- این خط اصلاح شده -->
+    <script src="register.js"></script>
+
 </body>
 </html>

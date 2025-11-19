@@ -678,8 +678,13 @@ function startDeleteMessage(msg){
   if(!confirm('حذف پیام؟')) return;
 
   socket.emit('message:delete', {
-    convId: activeConvId,
-    messageId: msg._id
+    messageId: msg._id,
+    forAll: true
+  }, (ack)=>{
+    if(!ack || !ack.ok){
+      console.error('delete failed:', ack);
+      return;
+    }
   });
 }
 
