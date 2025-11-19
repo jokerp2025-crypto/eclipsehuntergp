@@ -3,153 +3,114 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Eclipse Chat — نسخه حرفه‌ای</title>
+  <title>Eclipse Chat — نسخه نهایی</title>
 
-  <!-- Styles (replace with your chat.css) -->
   <link rel="stylesheet" href="chat.css">
-
-  <!-- Socket.IO (server provides /socket.io/socket.io.js) -->
   <script src="/socket.io/socket.io.js"></script>
 
-  <style> /* minimal fallback font for systems without Vazir */ 
-    @font-face{font-family:Vazir;src:local('Vazir'), local('Tahoma');}
-    body{font-family:Vazir, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;}
+  <style>
+    @font-face {
+      font-family: Vazir;
+      src: local('Vazir'), local('Tahoma');
+    }
+    body {
+      font-family: Vazir, system-ui, -apple-system, "Segoe UI", Roboto, Arial;
+    }
   </style>
 </head>
+
 <body class="theme-telegram">
-  <!-- Topbar -->
+
+  <!-- ========== TOPBAR ========== -->
   <header class="topbar">
     <div class="left">
-      <button id="hamburger" class="icon-btn" title="منو">
-        <!-- hamburger -->
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M3 6h18M3 12h18M3 18h18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-      </button>
+      <button id="openSidebarBtn" class="icon-btn">☰</button>
       <h1 class="app-title">Eclipse Chat</h1>
     </div>
 
-    <div class="center">
-      <input id="globalSearch" class="search-input" placeholder="جستجوی سریع (آیدی یا اسم)" aria-label="search">
-    </div>
-
     <div class="right">
-      <button id="startChatBtn" class="icon-btn" title="پیام جدید">+</button>
-      <select id="themeSelect" title="انتخاب تم" aria-label="theme select">
-        <option value="theme-telegram">تلگرام (پیش‌فرض)</option>
-        <option value="theme-instagram">اینستاگرام</option>
-        <option value="theme-whatsapp">واتساپ</option>
-        <option value="theme-future">فیوچر</option>
-      </select>
-      <button id="openSaved" class="icon-btn" title="پیام‌های ذخیره‌شده">★</button>
+      <input id="searchBox" class="search-input" placeholder="جستجو...">
+      <button id="openDrawerBtn" class="icon-btn">⚙️</button>
     </div>
   </header>
 
-  <!-- Main layout -->
-  <main class="main-layout container">
-
-    <!-- Sidebar / Conversations -->
-    <aside id="sidebar" class="rounded" role="navigation">
-      <div id="sidebarTop" class="sidebar-header">
-        <img id="profileAvatar" class="avatar" src="/default.png" alt="avatar">
-        <div class="profile-meta">
-          <!-- CHANGED: myName -> profileDisplayName (chat.js expects this) -->
-          <div id="profileDisplayName" data-old-id="myName" class="my-name">کاربر</div>
-          <!-- CHANGED: myId -> profileUsername -->
-          <div id="profileUsername" data-old-id="myId" class="my-id">@yourid</div>
+  <!-- ========== MAIN CONTAINER ========== -->
+  <div class="container">
+    
+    <!-- ========== SIDEBAR ========== -->
+    <aside id="sidebar">
+      <div class="sidebar-header">
+        <img id="myAvatar" src="/default.png" class="avatar">
+        <div>
+          <div id="myName" class="name">کاربر</div>
         </div>
       </div>
 
-      <div class="mb-8 p-8">
-        <button id="newChatBtn" class="small-btn">+ گفتگوی جدید</button>
-        <button id="clearLocalBtn" class="small-btn">پاکسازی محلی</button>
+      <div class="sidebar-actions">
+        <button class="icon-btn" id="newChatBtn">➕ گفتگو جدید</button>
       </div>
 
-      <!-- CONVERSATION LIST -->
-      <!-- CHANGED id userList -> convList so chat.js can find it -->
-      <div class="conv-list users" id="convList" data-old-id="userList" aria-live="polite"></div>
-
-      <div style="margin-top:auto;display:flex;gap:8px;justify-content:space-between;align-items:center">
-        <div class="muted small">نسخه طراحی‌شده</div>
-        <div><button id="logoutBtn" class="btn secondary">خروج</button></div>
-      </div>
+      <div id="convList" class="conv-list"></div>
     </aside>
 
-    <!-- Chat panel -->
-    <section id="chatPanel" class="chat-panel">
+    <!-- ========== CHAT PANEL ========== -->
+    <section id="chatPanel">
       <div class="chat-header">
         <div class="chat-title">
-          <div id="convTitle">انتخاب کنید</div>
-          <div id="convSubtitle" class="muted small">هیچ گفتگویی انتخاب نشده</div>
+          <div id="chatTitle" class="title">انتخاب گفتگو</div>
+          <div id="typingIndicator" class="chat-status" style="display:none;"></div>
+        </div>
+        <div>
+          <button id="openDrawerBtn2" class="icon-btn">👤</button>
         </div>
       </div>
 
-      <!-- MESSAGES WRAP -->
-      <!-- ADDED id messageList so JS can render messages into it -->
-      <div class="messages-wrap" id="messageList" aria-live="polite">
-        <!-- messages will be appended here by chat.js -->
-      </div>
+      <!-- messages -->
+      <div id="messageList" class="messages"></div>
 
-      <!-- Composer -->
+      <!-- composer -->
       <div class="composer">
-        <!-- ADDED composerInput and sendBtn and attachmentBtn for chat.js hooks -->
-        <input id="composerInput" placeholder="پیام خود را بنویس..." autocomplete="off" />
-        <button id="attachmentBtn" class="icon-btn" title="ضمیمه">📎</button>
-        <button id="sendBtn" class="btn">ارسال</button>
+        <button id="attachmentBtn" class="attachment-btn">📎</button>
+        <input type="file" id="fileInput" style="display:none">
+
+        <input id="messageInput" placeholder="نوشتن پیام..." autocomplete="off">
+
+        <button id="sendBtn" class="send-btn">ارسال</button>
       </div>
     </section>
 
-    <!-- RIGHT SIDEBAR / DRAWER (profile/settings) -->
-    <div class="drawer" id="drawer" role="dialog" aria-hidden="true">
+    <!-- ========== RIGHT DRAWER ========== -->
+    <div id="drawer" class="drawer">
       <div class="tabs">
         <div class="tab active">پروفایل</div>
         <div class="tab">تنظیمات</div>
+        <div class="tab">تم‌ها</div>
       </div>
-
-      <div class="field profilePreview">
-        <img id="drawerAvatar" class="avatar" src="/default.png" alt="avatar">
-        <div>
-          <div id="drawerName" class="muted">کاربر</div>
-          <div id="drawerId" class="muted small">@yourid</div>
-        </div>
+      <div class="drawer-content">
+        <p>محتوای کشویی...</p>
       </div>
-
-      <div class="field profile-edit">
-        <label>اسم نمایشی</label>
-        <input id="editDisplayName" type="text" />
-        <label>آیدی</label>
-        <input id="editUsername" type="text" />
-        <label>بیو</label>
-        <textarea id="editBio"></textarea>
-        <div id="profileMsg" class="muted small"></div>
-        <button id="saveProfileBtn" class="btn">ذخیره</button>
-      </div>
-
-      <div class="field">
-        <label>تم</label>
-        <select id="themeSelector">
-          <option value="telegram">تلگرام</option>
-          <option value="neon">نئون</option>
-          <option value="galaxy">گالکسی</option>
-        </select>
-      </div>
-
     </div>
 
-  </main>
+  </div>
 
-  <!-- TEMPLATE: message (hidden, used by JS to clone) -->
+  <!-- ========== MESSAGE TEMPLATE ========== -->
   <template id="tpl-message">
     <div class="message-item">
       <div class="message-bubble">
-        <div class="message-meta">
-          <span class="fromName"></span>
-          <span class="atTime muted small"></span>
-        </div>
+        <div class="fromName"></div>
         <div class="message-text"></div>
+
+        <div class="msg-attachments"></div>
+
+        <div class="message-meta">
+          <span class="msg-time"></span>
+          <span class="msg-status"></span>
+          <span class="message-edited"></span>
+        </div>
       </div>
     </div>
   </template>
 
-  <!-- your chat.js -->
   <script src="chat.js"></script>
 </body>
 </html>
