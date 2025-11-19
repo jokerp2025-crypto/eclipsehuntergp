@@ -1,32 +1,66 @@
 <!DOCTYPE html>
 <html lang="fa" dir="rtl">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ورود</title>
-    <link rel="stylesheet" href="login-register.css">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>ورود — Eclipse Hunter</title>
+  <style>
+    :root {
+      --tg-blue:#0088cc;
+      --bg:#f6f9fc;
+      --card:#ffffff;
+      --muted:#6b7280;
+      --danger:#b91c1c;
+      --success:#059669;
+    }
+    * { box-sizing:border-box; font-family:system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial }
+    html,body { height:100%; margin:0; background:linear-gradient(180deg,#eaf6fb 0%,var(--bg) 100%); color:#111 }
+    .wrap { min-height:100vh; display:flex; align-items:center; justify-content:center; padding:20px }
+    .card { width:100%; max-width:460px; background:var(--card); border-radius:16px; box-shadow:0 8px 30px rgba(2,6,23,0.06); padding:20px }
+    h1 { margin:0 0 8px; font-size:20px; color:var(--tg-blue); text-align:center }
+    p.lead { margin:0 0 16px; text-align:center; color:var(--muted); font-size:14px }
+    form { display:flex; flex-direction:column; gap:10px }
+    .input { width:100%; padding:12px 14px; border-radius:12px; border:1px solid #e6eef6; background:transparent; font-size:15px; direction:ltr }
+    .btn { display:inline-flex; align-items:center; justify-content:center; padding:12px; border-radius:12px; border:0; background:var(--tg-blue); color:#fff; font-weight:600; cursor:pointer; font-size:15px }
+    .muted { color:var(--muted); font-size:13px; text-align:center }
+    .links { display:flex; justify-content:center; margin-top:10px; gap:8px }
+    .msg { margin-top:10px; text-align:center; font-size:13px; color:var(--danger); min-height:20px }
+    .row { display:flex; gap:8px; align-items:center; justify-content:space-between }
+    label.checkbox { font-size:13px; color:var(--muted); display:flex; align-items:center; gap:8px; cursor:pointer }
+    .small { font-size:13px; color:var(--muted) }
+    @media(min-width:720px) {
+      .card { padding:28px }
+      h1 { font-size:22px }
+    }
+  </style>
 </head>
-
 <body>
+  <div class="wrap">
+    <div class="card" role="main" aria-labelledby="title">
+      <h1 id="title">ورود به Eclipse Hunter</h1>
+      <p class="lead">با نام کاربری و رمز عبور خود وارد شوید</p>
 
-    <div class="container">
-        <div class="form-container">
-            <h2>ورود به حساب</h2>
+      <form id="loginForm" autocomplete="off" novalidate>
+        <input id="username" name="username" class="input" type="text" placeholder="Username (آیدی)" required />
+        <input id="password" name="password" class="input" type="password" placeholder="Password (رمز عبور)" required />
 
-            <form id="loginForm">
-                <input id="email" type="email" placeholder="ایمیل" />
-                <input id="password" type="password" placeholder="رمز عبور" />
-
-                <div id="errorBox" class="error"></div>
-
-                <button type="submit">ورود</button>
-            </form>
-
-            <a href="/register.html" class="link">ثبت‌نام</a>
+        <div class="row" style="align-items:center;flex-wrap:wrap">
+          <label class="checkbox"><input id="remember" type="checkbox" /> مرا به خاطر بسپار</label>
+          <a href="/forgot.html" class="small" style="color:var(--tg-blue);text-decoration:none">رمز را فراموش کرده‌اید؟</a>
         </div>
+
+        <button type="submit" class="btn">ورود</button>
+      </form>
+
+      <div class="links muted" style="margin-top:12px">
+        <span>حساب ندارید؟</span>
+        <a href="/register.html" style="color:var(--tg-blue);text-decoration:none;font-weight:600;margin-left:6px">ثبت‌ نام</a>
+      </div>
+
+      <div id="message" class="msg" aria-live="polite"></div>
     </div>
+  </div>
 
-    <script src="login.js"></script>
-
+<script src="login.js"></script>
 </body>
 </html>
